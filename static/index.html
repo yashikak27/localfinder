@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalFind - Hyperlocal Product Discovery & Shopping</title>
+  <meta name="description" content="Find out whether the item you want is available at nearby local shops without walking or calling around." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
+</head>
+<body>
+
+  <!-- Quick Demo Logins Bar (Top Bar for easy testing) -->
+  <div class="demo-bar">
+    <div>
+      <span class="demo-badge">PROTOTYPE DEMO</span>
+      <span style="margin-left: 0.4rem;">Yamunanagar & Jagadhri Hyperlocal Network</span>
+    </div>
+    <div class="demo-bar-actions">
+      <span>1-Click Switch:</span>
+      <button class="demo-btn" id="demo-login-customer">👤 Customer</button>
+      <button class="demo-btn" id="demo-login-shopkeeper">🏪 Shopkeeper</button>
+      <button class="demo-btn" id="demo-login-admin">🛡️ Admin</button>
+    </div>
+  </div>
+
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <div class="container nav-content">
+      <!-- Brand Logo -->
+      <a class="brand" href="#" onclick="appState.navigate('home')">
+        <div class="brand-icon">LF</div>
+        <div>
+          <span class="brand-name" data-i18n="app_name">LocalFind</span>
+          <span class="brand-tagline" data-i18n="tagline">Hyperlocal Product Discovery</span>
+        </div>
+      </a>
+
+      <!-- Navigation Links -->
+      <nav>
+        <ul class="nav-links" id="nav-links">
+          <li><a class="nav-item active" href="#" data-nav="home" data-i18n="nav_home">Home</a></li>
+          <li><a class="nav-item" href="#" data-nav="find-item" data-i18n="nav_find_item">Find an Item</a></li>
+          <li><a class="nav-item" href="#" data-nav="shops" data-i18n="nav_shops">Shops</a></li>
+          <li><a class="nav-item" href="#" data-nav="orders" data-i18n="nav_orders">My Orders</a></li>
+          <li><a class="nav-item" href="#" data-nav="profile" data-i18n="nav_profile">Profile</a></li>
+        </ul>
+      </nav>
+
+      <!-- Nav Actions Right -->
+      <div class="nav-actions">
+        <!-- Role Slot -->
+        <div id="nav-role-slot"></div>
+
+        <!-- Language Switcher Pill -->
+        <div class="lang-switcher">
+          <button class="lang-btn active" data-lang="en">EN</button>
+          <button class="lang-btn" data-lang="hi">हिंदी</button>
+        </div>
+
+        <!-- Cart Button -->
+        <button class="nav-cart-btn" id="nav-cart-btn" title="Shopping Cart">
+          🛒 <span class="cart-count" id="cart-count-badge">0</span>
+        </button>
+
+        <!-- Notification Bell -->
+        <div style="position: relative;">
+          <button class="btn btn-outline btn-sm" id="notif-bell" style="padding: 0.45rem 0.6rem; border-radius: var(--radius-md);" title="Notifications">
+            🔔 <span id="notif-badge" style="display: none; background: var(--danger); color: white; border-radius: 9999px; font-size: 0.7rem; padding: 0.05rem 0.35rem; font-weight: 700;">0</span>
+          </button>
+          <!-- Dropdown -->
+          <div id="notif-dropdown" style="display: none; position: absolute; right: 0; top: 44px; width: 300px; background: white; border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: var(--shadow-xl); z-index: 150; max-height: 360px; overflow-y: auto;">
+            <div style="padding: 0.6rem 0.8rem; font-weight: 700; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between;">
+              <span>Notifications</span>
+            </div>
+            <div id="notif-list"></div>
+          </div>
+        </div>
+
+        <!-- User Account Avatar / Login -->
+        <div id="nav-user-slot"></div>
+
+        <!-- Mobile Menu Hamburger -->
+        <button class="mobile-menu-toggle btn btn-outline btn-sm" id="mobile-menu-toggle" style="display: none; padding: 0.45rem 0.7rem;">
+          ☰
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Dynamic Application Root -->
+  <main id="app-root"></main>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. First-time Language Selection Modal -->
+  <div class="modal-overlay" id="lang-select-modal">
+    <div class="modal-dialog" style="max-width: 440px; text-align: center;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🌐</div>
+      <h2 class="modal-title" style="margin-bottom: 0.2rem;" data-i18n="choose_lang_title">Choose Your Language / अपनी भाषा चुनें</h2>
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.5rem;" data-i18n="choose_lang_desc">You can change this anytime from the top navigation bar.</p>
+      
+      <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+        <button class="btn btn-primary btn-lg btn-block" id="modal-lang-en" data-i18n="btn_english">
+          English
+        </button>
+        <button class="btn btn-outline btn-lg btn-block" id="modal-lang-hi" data-i18n="btn_hindi">
+          हिंदी (Hindi)
+        </button>
+      </div>
+
+      <button class="btn btn-secondary btn-block" id="modal-lang-continue" data-i18n="btn_continue">
+        ${t("btn_continue")} →
+      </button>
+    </div>
+  </div>
+
+  <!-- 2. Directions & Route Map Modal (Step 15) -->
+  <div class="modal-overlay" id="directions-modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="directions_modal_title">Route & Directions</h3>
+        <button class="modal-close modal-close-btn">&times;</button>
+      </div>
+      
+      <div style="margin-bottom: 1rem;">
+        <h4 id="dir-shop-name" style="font-size: 1.15rem; font-weight: 700; color: var(--dark);"></h4>
+        <p id="dir-shop-addr" style="font-size: 0.88rem; color: var(--text-muted);"></p>
+      </div>
+
+      <!-- Map Mockup Preview -->
+      <div class="map-placeholder">
+        <div class="map-pin">
+          <span>📍</span>
+          <span>Destination: Store</span>
+        </div>
+      </div>
+
+      <div style="background: var(--bg-subtle); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.25rem; font-size: 0.9rem;">
+        <h5 style="font-weight: 700; margin-bottom: 0.4rem;">Suggested Route (Yamunanagar):</h5>
+        <p>1. Start from Civil Lines / Fountain Chowk</p>
+        <p>2. Head towards Main Bazar / Jagadhri Clock Tower (Approx 1.8 km - 7 mins)</p>
+        <p>3. Destination will be on your left side with LocalFind verified board.</p>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem;">
+        <a href="https://maps.google.com" target="_blank" class="btn btn-outline-primary btn-block">
+          Open in Google Maps
+        </a>
+        <button class="btn btn-primary btn-block modal-close-btn" data-i18n="btn_close">
+          ${t("btn_close")}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Single-Shop Limitation Alert Modal (Step 20) -->
+  <div class="modal-overlay" id="single-shop-modal">
+    <div class="modal-dialog" style="max-width: 480px; text-align: center;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🏪</div>
+      <h3 class="modal-title" style="margin-bottom: 0.5rem;" data-i18n="single_shop_alert_title">Single Shop per Order</h3>
+      <p id="single-shop-msg" style="font-size: 0.92rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1.5rem;" data-i18n="single_shop_alert_body">
+        Your cart currently contains products from another shop. Please place this order first or clear the cart to continue.
+      </p>
+      <div style="display: flex; gap: 0.75rem;">
+        <button class="btn btn-outline btn-block modal-close-btn" onclick="appState.navigate('cart')">
+          View Cart
+        </button>
+        <button class="btn btn-danger btn-block modal-close-btn" onclick="api.clearCart(appState.currentUser.id).then(() => { window.showToast('Cart Cleared', 'You can now add items from this shop.', 'info'); })">
+          Clear Cart & Proceed
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Shopkeeper Suggestion Reply Modal (Step 25) -->
+  <div class="modal-overlay" id="suggestion-modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="suggestion_modal_title">Suggest a Product</h3>
+        <button class="modal-close modal-close-btn">&times;</button>
+      </div>
+
+      <form id="suggestion-form">
+        <input type="hidden" id="sug-req-id" />
+        <input type="hidden" id="sug-shop-id" />
+
+        <div class="form-group">
+          <label class="form-label" data-i18n="suggestion_product_name">Product Name *</label>
+          <input type="text" id="sug-prod-name" class="form-control" placeholder="e.g. Slim-Fit Cotton Shirt (Navy Blue)" required />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" data-i18n="suggestion_price">Price (₹) *</label>
+            <input type="number" id="sug-prod-price" class="form-control" placeholder="799" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="suggestion_image">Product Image URL</label>
+            <input type="url" id="sug-prod-img" class="form-control" placeholder="https://images.unsplash.com/..." value="https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" data-i18n="suggestion_desc">Product Description</label>
+          <textarea id="sug-prod-desc" class="form-control" rows="2" placeholder="Fabric, color shade, size availability..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Note to Customer</label>
+          <input type="text" id="sug-note" class="form-control" placeholder="e.g. We have this ready in stock in size L. You can visit or order now." />
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-block" data-i18n="btn_send_suggestion">
+          🚀 Send Suggestion
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. Ratings & Feedback Modal (Step 21) -->
+  <div class="modal-overlay" id="rating-modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="feedback_title">Rate Your Experience</h3>
+        <button class="modal-close modal-close-btn">&times;</button>
+      </div>
+
+      <form id="rating-form">
+        <input type="hidden" id="rate-order-id" />
+        <input type="hidden" id="rate-shop-id" />
+
+        <div style="margin-bottom: 1.25rem;">
+          <h4 id="rate-shop-title" style="font-size: 1.1rem; font-weight: 700; color: var(--dark);"></h4>
+        </div>
+
+        <!-- 1. Shop Rating (1 to 5 stars + review) -->
+        <div class="form-group">
+          <label class="form-label" data-i18n="rate_shop_label">1. Shop Rating (1-5 stars)</label>
+          <div class="star-rating" id="shop-stars-picker">
+            <span class="star filled">★</span>
+            <span class="star filled">★</span>
+            <span class="star filled">★</span>
+            <span class="star filled">★</span>
+            <span class="star filled">★</span>
+          </div>
+          <input type="hidden" id="rate-shop-val" value="5" />
+          <input type="text" id="rate-shop-review" class="form-control" style="margin-top: 0.5rem;" data-i18n-placeholder="feedback_comments_placeholder" placeholder="Review for shop..." />
+        </div>
+
+        <!-- 2. Delivery Rating (1 to 5 stars + review, home delivery only) -->
+        <div class="form-group" id="delivery-rating-group">
+          <label class="form-label" data-i18n="rate_delivery_label">2. Delivery Service Rating (1-5 stars)</label>
+          <div class="star-rating" id="delivery-stars-picker">
+            <span class="star filled">★</span>
+            <span class="star filled">★</span>
+            <span class="star filled">★</span>
+            <span class="star filled">★</span>
+            <span class="star filled">★</span>
+          </div>
+          <input type="hidden" id="rate-delivery-val" value="5" />
+          <input type="text" id="rate-delivery-review" class="form-control" style="margin-top: 0.5rem;" placeholder="Feedback for delivery partner..." />
+        </div>
+
+        <!-- 3. Product Satisfaction (Yes / No + optional feedback) -->
+        <div class="form-group">
+          <label class="form-label" data-i18n="satisfied_question">3. Were you satisfied with the product?</label>
+          <div style="display: flex; gap: 1.5rem; margin-top: 0.3rem;">
+            <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+              <input type="radio" name="rate-prod-sat" value="Yes" checked />
+              <strong data-i18n="btn_yes">Yes, satisfied</strong>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+              <input type="radio" name="rate-prod-sat" value="No" />
+              <strong data-i18n="btn_no">Not satisfied</strong>
+            </label>
+          </div>
+          <input type="text" id="rate-prod-feedback" class="form-control" style="margin-top: 0.5rem;" placeholder="Product feedback..." />
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg" data-i18n="btn_submit_feedback">
+          ⭐ Submit Rating
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/i18n.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/views/auth.js"></script>
+  <script src="js/views/customer.js"></script>
+  <script src="js/views/payment.js"></script>
+  <script src="js/views/notifications.js"></script>
+  <script src="js/views/cart.js"></script>
+  <script src="js/views/orders.js"></script>
+  <script src="js/views/profile.js"></script>
+  <script src="js/views/shopkeeper.js"></script>
+  <script src="js/views/admin.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

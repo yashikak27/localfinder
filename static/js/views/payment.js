@@ -62,7 +62,7 @@ const paymentView = {
           <!-- Hyperlocal Payment Guarantee -->
           <div class="card" style="background: linear-gradient(135deg, #064e3b 0%, #059669 100%); color: white;">
             <div style="font-size: 2rem; margin-bottom: 0.75rem;">🛡️</div>
-            <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem; color: white;">LocalFind SafePay Guarantee</h3>
+            <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem; color: white;">Nearby SafePay Guarantee</h3>
             <p style="font-size: 0.9rem; opacity: 0.92; line-height: 1.6; margin-bottom: 1.25rem;">
               With our hyperlocal network, you inspect your items first! Whether you choose self-pickup at the shop or doorstep delivery, pay cash or UPI with complete peace of mind.
             </p>
@@ -233,7 +233,7 @@ const paymentView = {
               <li>0% gateway commission on direct neighborhood Cash-on-Delivery.</li>
               <li>Same-day payout settlement for digital UPI orders.</li>
               <li>Customer verification code requested upon doorstep delivery.</li>
-              <li>Dispute resolution assistance from LocalFind local support team.</li>
+              <li>Dispute resolution assistance from Nearby local support team.</li>
             </ul>
           </div>
         </div>

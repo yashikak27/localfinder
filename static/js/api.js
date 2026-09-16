@@ -45,6 +45,10 @@ const api = {
     return this.request("/api/auth/login", { method: "POST", body: credentials });
   },
 
+  onboard(userData) {
+    return this.request("/api/auth/onboard", { method: "POST", body: userData });
+  },
+
   getProfile(userId) {
     return this.request(`/api/auth/me?user_id=${userId}`);
   },
@@ -108,7 +112,16 @@ const api = {
   },
 
   selectRequestResponse(requestId, selectionData) {
-    return this.request(`/api/requests/${requestId}/select`, { method: "PUT", body: selectionData });
+    return this.request(`/api/requests/${requestId}/select`, { method: "POST", body: selectionData });
+  },
+
+  broadcastRequest(requestId) {
+    return this.request(`/api/requests/${requestId}/broadcast`, { method: "POST" });
+  },
+
+  getShopkeeperStats(shopId, userId) {
+    const q = new URLSearchParams({ shop_id: shopId || "", user_id: userId || "" }).toString();
+    return this.request(`/api/shopkeeper/stats?${q}`);
   },
 
   // Cart

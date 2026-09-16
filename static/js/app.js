@@ -1,5 +1,5 @@
 /**
- * app.js - Main Application Orchestrator, Router, Modals & Toast Manager for LocalFind
+ * app.js - Main Application Orchestrator, Router, Modals & Toast Manager for Nearby
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -9,7 +9,6 @@ document.addEventListener("DOMContentLoaded", () => {
 function initApp() {
   // 1. Setup Top Bar, Header, Navigation & Events
   setupNavigation();
-  setupDemoAccountsBar();
   setupModals();
 
   // 2. Listen to State Events
@@ -18,27 +17,27 @@ function initApp() {
   });
 
   window.addEventListener("userChanged", () => {
-    updateNavUser();
-    updateNavLinks();
+    updateHeader();
     refreshNotifications();
     loadCartState();
   });
 
   window.addEventListener("roleChanged", (e) => {
-    updateNavUser();
-    updateNavLinks();
+    updateHeader();
     if (e.detail.role === "shopkeeper") {
       appState.navigate("shopkeeper");
-    } else if (e.detail.role === "admin") {
-      appState.navigate("admin");
     } else if (e.detail.role === "customer") {
       appState.navigate("home");
+    } else if (appState.currentUser) {
+      appState.navigate("role-select");
+    } else {
+      appState.navigate("login");
     }
   });
 
   window.addEventListener("languageChanged", () => {
     i18n.applyTranslations(document);
-    updateNavLinks();
+    updateHeader();
     renderCurrentView(appState.currentView, appState.viewParams);
   });
 
@@ -47,8 +46,7 @@ function initApp() {
   });
 
   // 3. Initial Render
-  updateNavUser();
-  updateNavLinks();
+  updateHeader();
   loadCartState();
   refreshNotifications();
   renderCurrentView(appState.currentView, appState.viewParams);
@@ -77,79 +75,124 @@ window.showToast = function(title, message, type = "info") {
   }, 4000);
 };
 
-// Dynamic Navigation Links (Customer vs Shopkeeper)
-function updateNavLinks() {
+// Dynamic Header according to selected role
+function updateHeader() {
+  const navContainer = document.getElementById("nav-container");
   const navLinks = document.getElementById("nav-links");
-  if (!navLinks) return;
+  const roleSlot = document.getElementById("nav-role-slot");
+  const roleActions = document.getElementById("nav-role-actions");
+  const userSlot = document.getElementById("nav-user-slot");
+  const cartBtn = document.getElementById("nav-cart-btn");
 
   const user = appState.currentUser;
   const role = appState.currentRole;
+  const view = appState.currentView;
 
-  if (!user || !role) {
-    navLinks.innerHTML = `
-      <li><a class="nav-item ${appState.currentView === 'welcome-flow' ? 'active' : ''}" href="#" data-nav="welcome-flow" data-i18n="welcome_title">Get Started</a></li>
-      <li><a class="nav-item ${appState.currentView === 'login' ? 'active' : ''}" href="#" data-nav="login" data-i18n="nav_login">${t("nav_login")}</a></li>
-    `;
+  // Before login OR on role-selection screen: Hide dashboard navigation
+  if (!user || !role || view === "login" || view === "role-select") {
+    if (navContainer) navContainer.style.display = "none";
+    if (roleSlot) roleSlot.innerHTML = "";
+    if (roleActions) roleActions.style.display = "none";
+    if (userSlot) {
+      if (user && view === "role-select") {
+        userSlot.innerHTML = `
+          <button class="btn btn-sm btn-outline-danger" id="nav-btn-logout" title="Sign out / change details">
+            🚪 Sign Out
+          </button>
+        `;
+        document.getElementById("nav-btn-logout")?.addEventListener("click", () => appState.logout());
+      } else {
+        userSlot.innerHTML = "";
+      }
+    }
+    return;
+  }
+
+  // Customer Role: Customer-specific Header (Decluttered: no Cart, no Shops, no Find an item)
+  if (role === "customer") {
+    if (navContainer) navContainer.style.display = "block";
+    if (roleActions) {
+      roleActions.style.display = "flex";
+      if (cartBtn) cartBtn.style.display = "none"; // Decluttered: removed cart from top nav
+    }
+
+    if (roleSlot) {
+      roleSlot.innerHTML = "";
+    }
+
+    if (navLinks) {
+      navLinks.innerHTML = `
+        <li><a class="nav-item ${view === 'home' ? 'active' : ''}" href="#" data-nav="home">Nearby Wizard</a></li>
+        <li><a class="nav-item ${view === 'orders' ? 'active' : ''}" href="#" data-nav="orders">My Orders</a></li>
+      `;
+    }
+
+    if (userSlot) {
+      userSlot.innerHTML = `
+        <button type="button" class="nearby-nav-profile-btn" id="nav-single-profile-trigger" title="View Registration Profile Details">
+          <div class="nearby-avatar-circle">${user.full_name ? user.full_name.charAt(0).toUpperCase() : 'C'}</div>
+          <span>${user.full_name || 'Customer'}</span>
+          <span style="font-size: 0.7rem; opacity: 0.7;">▼</span>
+        </button>
+      `;
+      document.getElementById("nav-single-profile-trigger")?.addEventListener("click", () => appState.openProfileDrawer());
+    }
   } else if (role === "shopkeeper") {
-    // Shopkeeper Nav: Dashboard, My Shop / Profile, Products, Add Product, Customer Requests, Orders, Confirmed Orders, Earnings, Payment, Notifications, Logout
-    navLinks.innerHTML = `
-      <li><a class="nav-item ${appState.currentView === 'shopkeeper' && shopkeeperView.currentTab === 'overview' ? 'active' : ''}" href="#" data-nav="shopkeeper" data-i18n="nav_dashboard">${t("nav_dashboard")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'shop-profile' ? 'active' : ''}" href="#" data-nav="shop-profile" data-i18n="nav_my_shop">${t("nav_my_shop")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'products' ? 'active' : ''}" href="#" data-nav="products" data-i18n="nav_products">${t("nav_products")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'add-product' ? 'active' : ''}" href="#" data-nav="add-product" data-i18n="nav_add_product">${t("nav_add_product")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'requests' ? 'active' : ''}" href="#" data-nav="requests" data-i18n="nav_requests">${t("nav_requests")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'orders' ? 'active' : ''}" href="#" data-nav="orders" data-i18n="tab_orders">${t("tab_orders")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'confirmed-orders' ? 'active' : ''}" href="#" data-nav="confirmed-orders" data-i18n="nav_confirmed_orders">${t("nav_confirmed_orders")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'earnings' ? 'active' : ''}" href="#" data-nav="earnings" data-i18n="nav_earnings">${t("nav_earnings")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'payment' ? 'active' : ''}" href="#" data-nav="payment" data-i18n="nav_payment">${t("nav_payment")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'notifications' ? 'active' : ''}" href="#" data-nav="notifications" data-i18n="nav_notifications">${t("nav_notifications")}</a></li>
-      <li><a class="nav-item" href="#" data-action="logout" data-i18n="nav_logout" style="color: var(--danger); font-weight: 700;">🚪 ${t("nav_logout")}</a></li>
-    `;
-  } else {
-    // Customer Nav: Home, Find an Item, Shops, Cart, My Orders, Profile, Payment, Notifications, Logout
-    navLinks.innerHTML = `
-      <li><a class="nav-item ${appState.currentView === 'home' ? 'active' : ''}" href="#" data-nav="home" data-i18n="nav_home">${t("nav_home")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'find-item' ? 'active' : ''}" href="#" data-nav="find-item" data-i18n="nav_find_item">${t("nav_find_item")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'shops' ? 'active' : ''}" href="#" data-nav="shops" data-i18n="nav_shops">${t("nav_shops")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'cart' ? 'active' : ''}" href="#" data-nav="cart" data-i18n="nav_cart">${t("nav_cart")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'orders' ? 'active' : ''}" href="#" data-nav="orders" data-i18n="nav_orders">${t("nav_orders")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'profile' ? 'active' : ''}" href="#" data-nav="profile" data-i18n="nav_profile">${t("nav_profile")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'payment' ? 'active' : ''}" href="#" data-nav="payment" data-i18n="nav_payment">${t("nav_payment")}</a></li>
-      <li><a class="nav-item ${appState.currentView === 'notifications' ? 'active' : ''}" href="#" data-nav="notifications" data-i18n="nav_notifications">${t("nav_notifications")}</a></li>
-      <li><a class="nav-item" href="#" data-action="logout" data-i18n="nav_logout" style="color: var(--danger); font-weight: 700;">🚪 ${t("nav_logout")}</a></li>
-    `;
+    // Shopkeeper Role: Shopkeeper-specific Header
+    if (navContainer) navContainer.style.display = "block";
+    if (roleActions) {
+      roleActions.style.display = "flex";
+      if (cartBtn) cartBtn.style.display = "none";
+    }
+
+    if (roleSlot) {
+      roleSlot.innerHTML = "";
+    }
+
+    if (navLinks) {
+      navLinks.innerHTML = `
+        <li><a class="nav-item ${view === 'shopkeeper' && shopkeeperView.currentTab === 'requests' ? 'active' : ''}" href="#" data-nav="shopkeeper">Seller Hub</a></li>
+        <li><a class="nav-item ${view === 'orders' ? 'active' : ''}" href="#" data-nav="orders">Orders</a></li>
+      `;
+    }
+
+    if (userSlot) {
+      userSlot.innerHTML = `
+        <button type="button" class="nearby-nav-profile-btn" id="nav-single-profile-trigger" title="View Registration Profile Details">
+          <div class="nearby-avatar-circle" style="background: var(--pastel-blush);">${user.full_name ? user.full_name.charAt(0).toUpperCase() : 'S'}</div>
+          <span>${user.full_name || 'Merchant'}</span>
+          <span style="font-size: 0.7rem; opacity: 0.7;">▼</span>
+        </button>
+      `;
+      document.getElementById("nav-single-profile-trigger")?.addEventListener("click", () => appState.openProfileDrawer());
+    }
   }
 
   // Attach nav listeners
-  navLinks.querySelectorAll("[data-nav]").forEach(link => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const target = link.dataset.nav;
-      appState.navigate(target);
-      navLinks.classList.remove("mobile-open");
+  if (navLinks) {
+    navLinks.querySelectorAll("[data-nav]").forEach(link => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const target = link.dataset.nav;
+        appState.navigate(target);
+        navLinks.classList.remove("mobile-open");
+      });
     });
-  });
+  }
 
-  navLinks.querySelectorAll("[data-action='logout']").forEach(link => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      appState.logout();
-      window.showToast("Signed Out", "You have been logged out successfully.", "info");
-      navLinks.classList.remove("mobile-open");
-    });
-  });
-
-  i18n.applyTranslations(navLinks);
+  i18n.applyTranslations(document.getElementById("main-navbar"));
 }
 
 // Navigation & Header Setup
 function setupNavigation() {
-  const brand = document.querySelector(".brand");
-  if (brand) {
-    brand.addEventListener("click", (e) => {
+  const brandLink = document.getElementById("brand-link");
+  if (brandLink) {
+    brandLink.addEventListener("click", (e) => {
       e.preventDefault();
-      if (!appState.currentUser || !appState.currentRole) {
-        appState.navigate("welcome-flow");
+      if (!appState.currentUser) {
+        appState.navigate("login");
+      } else if (!appState.currentRole) {
+        appState.navigate("role-select");
       } else if (appState.currentRole === "shopkeeper") {
         appState.navigate("shopkeeper");
       } else {
@@ -193,46 +236,18 @@ function setupNavigation() {
       dropdown.style.display = "none";
     });
   }
-}
 
-function updateNavUser() {
-  const user = appState.currentUser;
-  const userSlot = document.getElementById("nav-user-slot");
-  const roleSlot = document.getElementById("nav-role-slot");
-
-  if (user) {
-    if (userSlot) {
-      userSlot.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;" onclick="appState.navigate('profile')">
-          <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;">
-            ${user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
-          </div>
-          <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">${user.full_name ? user.full_name.split(' ')[0] : 'Account'}</span>
-        </div>
-      `;
-    }
-
-    if (roleSlot) {
-      const role = appState.currentRole;
-      const roleText = role === "customer" ? t("role_customer") : (role === "shopkeeper" ? t("role_shopkeeper") : "Admin");
-      roleSlot.innerHTML = `
-        <span class="role-badge role-${role}" onclick="appState.navigate('role-select')" title="Click to switch role">
-          🔄 ${roleText}
-        </span>
-      `;
-    }
-  } else {
-    if (userSlot) {
-      userSlot.innerHTML = `
-        <button class="btn btn-sm btn-primary" onclick="appState.navigate('welcome-flow')" data-i18n="nav_login">
-          ${t("nav_login")}
-        </button>
-      `;
-    }
-    if (roleSlot) roleSlot.innerHTML = "";
-  }
-
-  i18n.applyTranslations(document);
+  // Profile Drawer controls
+  document.getElementById("profile-drawer-close-btn")?.addEventListener("click", () => appState.closeProfileDrawer());
+  document.getElementById("profile-drawer-overlay")?.addEventListener("click", () => appState.closeProfileDrawer());
+  document.getElementById("drawer-btn-switch-role")?.addEventListener("click", () => {
+    appState.closeProfileDrawer();
+    appState.navigate("role-select");
+  });
+  document.getElementById("drawer-btn-logout")?.addEventListener("click", () => {
+    appState.closeProfileDrawer();
+    appState.logout();
+  });
 }
 
 function updateCartBadge(count) {
@@ -279,58 +294,37 @@ async function refreshNotifications() {
   } catch (e) {}
 }
 
-// Demo quick-login switch bar
-function setupDemoAccountsBar() {
-  const custBtn = document.getElementById("demo-login-customer");
-  const shopBtn = document.getElementById("demo-login-shopkeeper");
-  const adminBtn = document.getElementById("demo-login-admin");
-
-  if (custBtn) {
-    custBtn.addEventListener("click", async () => {
-      const res = await api.login({ phone: "9876543210", password: "pass123" });
-      appState.setUser(res.user);
-      appState.setRole("customer");
-      window.showToast("Logged In", "Switched to Customer: Priya Sharma", "success");
-      appState.navigate("home");
-    });
-  }
-
-  if (shopBtn) {
-    shopBtn.addEventListener("click", async () => {
-      const res = await api.login({ phone: "9876543211", password: "pass123" });
-      appState.setUser(res.user);
-      appState.setRole("shopkeeper");
-      window.showToast("Logged In", "Switched to Shopkeeper: Rajesh Gupta", "success");
-      appState.navigate("shopkeeper");
-    });
-  }
-
-  if (adminBtn) {
-    adminBtn.addEventListener("click", async () => {
-      const res = await api.login({ phone: "9999999999", password: "admin123" });
-      appState.setUser(res.user);
-      appState.setRole("admin");
-      window.showToast("Logged In", "Switched to Admin Portal", "success");
-      appState.navigate("admin");
-    });
-  }
-}
-
-// Router
+// Router strictly enforcing sequential flow:
+// 1. Login/Onboarding Form -> 2. Role Selection -> 3. Role-specific Dashboard
 function renderCurrentView(view, params = {}) {
   const root = document.getElementById("app-root");
   if (!root) return;
 
-  // Enforce welcome flow if not logged in or no role chosen
-  if ((!appState.currentUser || !appState.currentRole) && view !== "welcome-flow" && view !== "login" && view !== "register") {
-    view = "welcome-flow";
+  // Enforce sequential flow
+  if (!appState.currentUser) {
+    view = "login";
+  } else if (!appState.currentRole) {
+    view = "role-select";
+  } else if (appState.currentRole === "customer") {
+    if (view === "login" || view === "role-select" || view === "shopkeeper" || view === "welcome-flow") {
+      view = "home";
+    }
+  } else if (appState.currentRole === "shopkeeper") {
+    if (view === "login" || view === "role-select" || view === "home" || view === "welcome-flow") {
+      view = "shopkeeper";
+    }
   }
 
-  updateNavLinks();
+  appState.currentView = view;
+  updateHeader();
 
   switch (view) {
+    case "login":
     case "welcome-flow":
-      authView.renderWelcomeFlow(root);
+      authView.renderLogin(root);
+      break;
+    case "role-select":
+      authView.renderRoleSelect(root);
       break;
     case "home":
       customerView.renderHome(root);
@@ -389,15 +383,6 @@ function renderCurrentView(view, params = {}) {
     case "profile":
       profileView.renderProfile(root);
       break;
-    case "login":
-      authView.renderLogin(root);
-      break;
-    case "register":
-      authView.renderRegister(root);
-      break;
-    case "role-select":
-      authView.renderRoleSelect(root);
-      break;
     case "shopkeeper":
       shopkeeperView.renderDashboard(root);
       break;
@@ -405,8 +390,10 @@ function renderCurrentView(view, params = {}) {
       adminView.renderAdmin(root);
       break;
     default:
-      if (!appState.currentUser || !appState.currentRole) {
-        authView.renderWelcomeFlow(root);
+      if (!appState.currentUser) {
+        authView.renderLogin(root);
+      } else if (!appState.currentRole) {
+        authView.renderRoleSelect(root);
       } else if (appState.currentRole === "shopkeeper") {
         shopkeeperView.renderDashboard(root);
       } else {
@@ -419,6 +406,12 @@ function renderCurrentView(view, params = {}) {
 
 // Modals Setup
 function setupModals() {
+  // Wire Slide-out Profile Details Drawer
+  document.getElementById("profile-drawer-close-btn")?.addEventListener("click", () => appState.closeProfileDrawer());
+  document.getElementById("profile-drawer-overlay")?.addEventListener("click", () => appState.closeProfileDrawer());
+  document.getElementById("drawer-btn-switch-role")?.addEventListener("click", () => appState.switchRole());
+  document.getElementById("drawer-btn-logout")?.addEventListener("click", () => appState.logout());
+
   // First-time language selector modal
   window.showLanguageModal = function() {
     const modal = document.getElementById("lang-select-modal");

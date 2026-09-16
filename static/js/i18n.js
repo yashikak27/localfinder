@@ -1,12 +1,12 @@
 /**
- * i18n.js - Dual Language (English & Hindi) Translation System for LocalFind
+ * i18n.js - Dual Language (English & Hindi) Translation System for Nearby
  * Instant translation toggle and persistent language storage.
  */
 
 const translations = {
   en: {
     // App Branding & Navigation
-    app_name: "LocalFind",
+    app_name: "Nearby",
     tagline: "Hyperlocal Product Discovery & Shopping",
     nav_home: "Home",
     nav_find_item: "Find an Item",
@@ -18,7 +18,7 @@ const translations = {
     nav_notifications: "Notifications",
     nav_admin: "Admin",
     nav_logout: "Logout",
-    nav_login: "Login / Register",
+    nav_login: "Login",
     nav_dashboard: "Dashboard",
     nav_my_shop: "My Shop / Profile",
     nav_products: "Products",
@@ -30,10 +30,10 @@ const translations = {
     role_shopkeeper: "Shopkeeper",
     role_admin: "Admin",
     switch_role: "Switch Role",
-    role_question: "How would you like to use LocalFind?",
+    role_question: "How would you like to use Nearby?",
 
     // Language Selector Modal
-    welcome_title: "Welcome to LocalFind",
+    welcome_title: "Welcome to Nearby",
     choose_lang_title: "Choose Your Language / अपनी भाषा चुनें",
     choose_lang_desc: "You can change this anytime from the top navigation bar.",
     btn_english: "English",
@@ -56,7 +56,7 @@ const translations = {
     cat_beauty_desc: "Lipsticks, eyeliners, compact powders and beauty kits",
     cat_shoes_desc: "Sports sneakers, casual slip-ons, formal shoes and sandals",
     explore_category: "Explore Items",
-    how_it_works: "How LocalFind Works",
+    how_it_works: "How Nearby Works",
     step1_title: "1. Tell Us What You Need",
     step1_desc: "Upload a picture or describe the item you are looking for.",
     step2_title: "2. Shopkeeper Checks Stock",
@@ -65,44 +65,50 @@ const translations = {
     step3_desc: "Visit the shop yourself with easy directions, or get it delivered to your home.",
 
     // Auth
-    login_title: "Sign In to Your Account",
-    login_sub: "Enter your registered phone number and password",
-    register_title: "Create a New Account",
-    register_sub: "Join LocalFind to discover nearby shops or manage your store",
+    login_title: "Welcome to Nearby",
+    login_sub: "Enter your account & location details to continue",
+    register_title: "Account Details",
+    register_sub: "Enter your details to get started with Nearby",
     full_name: "Full Name",
-    full_name_placeholder: "Enter your full name",
+    full_name_placeholder: "e.g. Priya Sharma",
+    email: "Email Address",
+    email_placeholder: "e.g. priya@example.com",
     phone_number: "Phone Number",
     phone_placeholder: "10-digit mobile number",
     password: "Password",
     password_placeholder: "Enter password",
-    address: "Street Address",
-    address_placeholder: "House/Shop no, street, colony",
+    address: "Full Address",
+    address_placeholder: "House/Flat no, building, street",
+    post_office: "Post Office",
+    post_office_placeholder: "e.g. Yamunanagar H.O.",
+    local_area: "Local Area / Locality",
+    local_area_placeholder: "e.g. Civil Lines, Model Town",
     pincode: "Pincode",
     pincode_placeholder: "e.g. 135001",
     state: "State",
     city: "City",
     city_placeholder: "e.g. Yamunanagar",
-    select_role_prompt: "Select Your Account Role",
-    role_customer_title: "I am a Customer",
-    role_customer_desc: "Find products, discover nearby shops, and order or visit a shop.",
-    role_shopkeeper_title: "I am a Shopkeeper",
-    role_shopkeeper_desc: "Create your shop, upload products, and manage customer requests and orders.",
-    shop_details_section: "Shop Information (For Shopkeepers)",
+    select_role_prompt: "How would you like to use Nearby?",
+    role_customer_title: "Customer",
+    role_customer_desc: "Find products, discover relevant local shops, and choose how to get your item.",
+    role_shopkeeper_title: "Shopkeeper",
+    role_shopkeeper_desc: "Manage your shop, products, customer requests, and orders.",
+    shop_details_section: "Shop Information",
     shop_name: "Shop Name",
     shop_name_placeholder: "e.g. Gupta Garments",
     shop_category: "Primary Shop Category",
     shop_area: "Area / Locality",
     shop_address: "Shop Physical Address",
-    btn_login: "Log In",
-    btn_register: "Register Account",
-    no_account: "Don't have an account?",
-    has_account: "Already registered?",
-    sign_up_now: "Sign up now",
-    sign_in_now: "Sign in now",
+    btn_login: "Continue",
+    btn_register: "Continue",
+    no_account: "",
+    has_account: "",
+    sign_up_now: "",
+    sign_in_now: "",
 
     // Role Selection Screen
-    role_select_title: "Select Your Role",
-    role_select_sub: "Please choose how you would like to use LocalFind today",
+    role_select_title: "How would you like to use Nearby?",
+    role_select_sub: "Choose your role to get started",
     btn_enter_customer: "Continue as Customer",
     btn_enter_shopkeeper: "Continue as Shopkeeper",
 
@@ -392,7 +398,7 @@ const translations = {
     btn_mark_collected: "Mark Collected",
 
     // Admin Dashboard
-    admin_title: "LocalFind Admin Control Panel",
+    admin_title: "Nearby Admin Control Panel",
     admin_sub: "Platform moderation, shop verification, and oversight.",
     admin_stat_users: "Total Customers",
     admin_stat_shopkeepers: "Shopkeepers",
@@ -418,7 +424,7 @@ const translations = {
 
   hi: {
     // App Branding & Navigation
-    app_name: "लोकलफाइंड (LocalFind)",
+    app_name: "Nearby (नियरबाई)",
     tagline: "आस-पास के सामान की खोज और खरीदारी",
     nav_home: "होम",
     nav_find_item: "सामान खोजें",
@@ -430,7 +436,7 @@ const translations = {
     nav_notifications: "सूचनाएं",
     nav_admin: "व्यवस्थापक (Admin)",
     nav_logout: "लॉगआउट",
-    nav_login: "लॉग इन / पंजीकरण",
+    nav_login: "लॉग इन",
     nav_dashboard: "डैशबोर्ड",
     nav_my_shop: "मेरी दुकान / प्रोफ़ाइल",
     nav_products: "उत्पाद",
@@ -442,10 +448,10 @@ const translations = {
     role_shopkeeper: "दुकानदार",
     role_admin: "व्यवस्थापक",
     switch_role: "भूमिका बदलें",
-    role_question: "आप लोकलफाइंड का उपयोग कैसे करना चाहते हैं?",
+    role_question: "आप Nearby का उपयोग कैसे करना चाहेंगे?",
 
     // Language Selector Modal
-    welcome_title: "लोकलफाइंड में आपका स्वागत है",
+    welcome_title: "Nearby में आपका स्वागत है",
     choose_lang_title: "अपनी पसंदीदा भाषा चुनें / Choose Language",
     choose_lang_desc: "आप इसे कभी भी ऊपर दिए गए मेनू से बदल सकते हैं।",
     btn_english: "English",
@@ -470,7 +476,7 @@ const translations = {
     cat_skincare_desc: "फेस वॉश, सीरम, सनस्क्रीन, मॉइस्चराइज़र और क्रीम",
     cat_shoes_desc: "स्पोर्ट्स स्नीकर्स, कैज़ुअल जूते, फ़ॉर्मल जूते और सैंडल",
     explore_category: "सामान देखें",
-    how_it_works: "लोकलफाइंड कैसे काम करता है?",
+    how_it_works: "नियरबाई कैसे काम करता है?",
     step1_title: "1. अपनी ज़रूरत बताएं",
     step1_desc: "मनपसंद सामान की तस्वीर अपलोड करें या साधारण शब्दों में बताएं।",
     step2_title: "2. दुकानदार सामान जांचेंगे",
@@ -482,7 +488,7 @@ const translations = {
     login_title: "अपने खाते में लॉग इन करें",
     login_sub: "अपना पंजीकृत मोबाइल नंबर और पासवर्ड दर्ज करें",
     register_title: "नया खाता बनाएं",
-    register_sub: "दुकानें खोजने या अपनी दुकान जोड़ने के लिए लोकलफाइंड से जुड़ें",
+    register_sub: "दुकानें खोजने या अपनी दुकान जोड़ने के लिए नियरबाई से जुड़ें",
     full_name: "पूरा नाम",
     full_name_placeholder: "अपना पूरा नाम लिखें",
     phone_number: "फ़ोन नंबर",
@@ -515,10 +521,14 @@ const translations = {
     sign_in_now: "लॉग इन करें",
 
     // Role Selection Screen
-    role_select_title: "अपनी भूमिका चुनें",
-    role_select_sub: "कृपया चुनें कि आप आज लोकलफाइंड का उपयोग कैसे करना चाहते हैं",
-    btn_enter_customer: "ग्राहक के रूप में आगे बढ़ें",
-    btn_enter_shopkeeper: "दुकानदार के रूप में आगे बढ़ें",
+    role_select_title: "आप Nearby का उपयोग कैसे करना चाहेंगे?",
+    role_select_sub: "शुरू करने के लिए अपनी भूमिका चुनें",
+    role_customer_title: "Customer (ग्राहक)",
+    role_customer_desc: "उत्पाद खोजें, प्रासंगिक स्थानीय दुकानों की जानकारी लें और सामान प्राप्त करने का तरीका चुनें।",
+    role_shopkeeper_title: "Shopkeeper (दुकानदार)",
+    role_shopkeeper_desc: "अपनी दुकान, उत्पाद, ग्राहकों की मांगें और ऑर्डर प्रबंधित करें।",
+    btn_enter_customer: "ग्राहक के रूप में जारी रखें",
+    btn_enter_shopkeeper: "दुकानदार के रूप में जारी रखें",
 
     // Find an Item Wizard
     find_item_title: "सामान खोजें",
@@ -806,7 +816,7 @@ const translations = {
     btn_mark_collected: "दुकान से ले लिया गया चिह्नित करें",
 
     // Admin Dashboard
-    admin_title: "लोकलफाइंड एडमिन कंट्रोल पैनल",
+    admin_title: "नियरबाई एडमिन कंट्रोल पैनल",
     admin_sub: "प्लेटफ़ॉर्म प्रबंधन, दुकानों का सत्यापन और निगरानी।",
     admin_stat_users: "कुल ग्राहक",
     admin_stat_shopkeepers: "दुकानदार",

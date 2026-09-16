@@ -1,375 +1,499 @@
 /**
- * auth.js - Authentication, Registration, Welcome Flow, and Role Selection Views
+ * auth.js - Authentic Multi-Step Onboarding Architecture for Nearby
+ * Step 1: Personal Credentials Screen (Full Name, Phone, Email, Password)
+ * Step 2: Detailed Address Screen (State, City, District, PIN Code, Locality, Post Office)
+ * Step 3: Role Selection Gateway (Customer vs. Seller / Shopkeeper)
  */
 
 const authView = {
-  welcomeStep: 1, // 1: Language, 2: Auth (Login/Register), 3: Role Selection
-  authTab: "login", // "login" or "register"
-
-  renderWelcomeFlow(container) {
-    if (this.welcomeStep === 1) {
-      this.renderWelcomeLanguage(container);
-    } else if (this.welcomeStep === 2) {
-      this.renderWelcomeAuth(container);
-    } else if (this.welcomeStep === 3) {
-      this.renderWelcomeRole(container);
-    }
+  // Temporary storage across onboarding steps
+  pendingCredentials: {
+    fullName: "",
+    phone: "",
+    email: "",
+    password: ""
   },
-
-  renderWelcomeLanguage(container) {
-    const currentLang = appState.currentLang || localStorage.getItem("localfind_lang") || "en";
-    container.innerHTML = `
-      <div style="max-width: 640px; margin: 3rem auto; padding: 0 1rem; text-align: center;">
-        <div style="margin-bottom: 2rem;">
-          <div class="brand-icon" style="margin: 0 auto 1rem; width: 64px; height: 64px; font-size: 2rem; border-radius: 16px;">LF</div>
-          <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--dark); margin-bottom: 0.5rem;">Welcome to LocalFind</h1>
-          <p style="font-size: 1.15rem; color: var(--primary); font-weight: 600; margin-bottom: 0.25rem;">लोकलफ़ाइंड में आपका स्वागत है</p>
-          <p style="color: var(--text-muted); font-size: 0.95rem;">Step 1 of 3: Choose your preferred language / अपनी पसंदीदा भाषा चुनें</p>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
-          <!-- English Card -->
-          <div class="card ${currentLang === 'en' ? 'selected' : ''}" id="welcome-lang-en" style="cursor: pointer; padding: 2rem 1.5rem; border: 2.5px solid ${currentLang === 'en' ? 'var(--primary)' : 'var(--border-color)'}; border-radius: 18px; transition: all 0.2s ease;">
-            <div style="font-size: 3rem; margin-bottom: 0.75rem;">🌐</div>
-            <h3 style="font-size: 1.35rem; font-weight: 800; color: var(--dark); margin-bottom: 0.35rem;">English</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">Explore stores & products in English</p>
-            <button class="btn ${currentLang === 'en' ? 'btn-primary' : 'btn-outline'} btn-block">
-              Select English
-            </button>
-          </div>
-
-          <!-- Hindi Card -->
-          <div class="card ${currentLang === 'hi' ? 'selected' : ''}" id="welcome-lang-hi" style="cursor: pointer; padding: 2rem 1.5rem; border: 2.5px solid ${currentLang === 'hi' ? 'var(--primary)' : 'var(--border-color)'}; border-radius: 18px; transition: all 0.2s ease;">
-            <div style="font-size: 3rem; margin-bottom: 0.75rem;">🇮🇳</div>
-            <h3 style="font-size: 1.35rem; font-weight: 800; color: var(--dark); margin-bottom: 0.35rem;">हिंदी (Hindi)</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">अपनी स्थानीय भाषा में खरीदारी करें</p>
-            <button class="btn ${currentLang === 'hi' ? 'btn-primary' : 'btn-outline'} btn-block">
-              हिंदी चुनें
-            </button>
-          </div>
-        </div>
-
-        <div style="font-size: 0.85rem; color: var(--text-muted);">
-          You can switch language anytime from the top bar.
-        </div>
-      </div>
-    `;
-
-    const selectLang = (lang) => {
-      setLanguage(lang);
-      this.welcomeStep = 2;
-      this.renderWelcomeFlow(container);
-    };
-
-    document.getElementById("welcome-lang-en").addEventListener("click", () => selectLang("en"));
-    document.getElementById("welcome-lang-hi").addEventListener("click", () => selectLang("hi"));
-  },
-
-  renderWelcomeAuth(container) {
-    container.innerHTML = `
-      <div style="max-width: 520px; margin: 2.5rem auto; padding: 0 1rem;">
-        <div style="text-align: center; margin-bottom: 1.5rem;">
-          <div class="brand-icon" style="margin: 0 auto 0.75rem; width: 52px; height: 52px; font-size: 1.7rem;">LF</div>
-          <span class="badge badge-info" style="margin-bottom: 0.5rem;">Step 2 of 3</span>
-          <h2 style="font-size: 1.85rem; font-weight: 800; color: var(--dark); margin-top: 0.3rem;">
-            ${this.authTab === 'login' ? t("login_title") : t("register_title")}
-          </h2>
-          <p style="color: var(--text-muted); font-size: 0.9rem;">
-            ${this.authTab === 'login' ? t("login_sub") : t("register_sub")}
-          </p>
-        </div>
-
-        <!-- Auth Tabs Toggle -->
-        <div style="display: flex; background: var(--bg-subtle); border-radius: var(--radius-md); padding: 4px; margin-bottom: 1.5rem;">
-          <button id="tab-login-btn" class="btn btn-block ${this.authTab === 'login' ? 'btn-primary' : ''}" style="border-radius: var(--radius-sm); font-weight: 600; padding: 0.6rem; border: none; background: ${this.authTab === 'login' ? 'var(--primary)' : 'transparent'}; color: ${this.authTab === 'login' ? '#fff' : 'var(--text-main)'};">
-            ${t("nav_login")}
-          </button>
-          <button id="tab-register-btn" class="btn btn-block ${this.authTab === 'register' ? 'btn-primary' : ''}" style="border-radius: var(--radius-sm); font-weight: 600; padding: 0.6rem; border: none; background: ${this.authTab === 'register' ? 'var(--primary)' : 'transparent'}; color: ${this.authTab === 'register' ? '#fff' : 'var(--text-main)'};">
-            ${t("btn_register")}
-          </button>
-        </div>
-
-        <!-- Quick 1-Click Demo Buttons -->
-        <div style="background: #ecfdf5; border: 1.5px dashed var(--primary); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
-          <div style="font-size: 0.85rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 0.5rem;">⚡ Quick 1-Click Demo Sign In</div>
-          <div style="display: flex; gap: 0.6rem; justify-content: center;">
-            <button class="btn btn-sm btn-primary" id="btn-quick-customer">
-              👤 Customer (Priya)
-            </button>
-            <button class="btn btn-sm btn-secondary" id="btn-quick-shopkeeper">
-              🏪 Shopkeeper (Rajesh)
-            </button>
-          </div>
-        </div>
-
-        <div class="card" style="box-shadow: var(--shadow-lg); border-radius: 16px;">
-          ${this.authTab === 'login' ? `
-            <form id="welcome-login-form">
-              <div class="form-group">
-                <label class="form-label" data-i18n="phone_number">${t("phone_number")}</label>
-                <input type="tel" id="w-login-phone" class="form-control" placeholder="9876543210" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label" data-i18n="password">${t("password")}</label>
-                <input type="password" id="w-login-password" class="form-control" placeholder="••••••••" required />
-              </div>
-              <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top: 1.25rem;">
-                ${t("btn_login")} →
-              </button>
-            </form>
-          ` : `
-            <form id="welcome-reg-form">
-              <div class="form-group">
-                <label class="form-label" data-i18n="full_name">${t("full_name")} *</label>
-                <input type="text" id="w-reg-name" class="form-control" placeholder="${t("full_name_placeholder")}" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label" data-i18n="phone_number">${t("phone_number")} *</label>
-                <input type="tel" id="w-reg-phone" class="form-control" placeholder="10-digit mobile" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label" data-i18n="address">${t("address")} *</label>
-                <input type="text" id="w-reg-address" class="form-control" placeholder="${t("address_placeholder")}" required />
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" data-i18n="city">${t("city")} *</label>
-                  <input type="text" id="w-reg-city" class="form-control" value="Yamunanagar" required />
-                </div>
-                <div class="form-group">
-                  <label class="form-label" data-i18n="pincode">${t("pincode")} *</label>
-                  <input type="text" id="w-reg-pincode" class="form-control" value="135003" required />
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label" data-i18n="password">${t("password")} *</label>
-                <input type="password" id="w-reg-password" class="form-control" placeholder="••••••••" required />
-              </div>
-              <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top: 1.25rem;">
-                ${t("btn_register")} →
-              </button>
-            </form>
-          `}
-        </div>
-
-        <div style="text-align: center; margin-top: 1.25rem;">
-          <button class="btn btn-link btn-sm" id="btn-back-to-lang" style="color: var(--text-muted);">
-            ← Back to Language Selection
-          </button>
-        </div>
-      </div>
-    `;
-
-    // Tab buttons
-    document.getElementById("tab-login-btn").addEventListener("click", () => {
-      this.authTab = "login";
-      this.renderWelcomeAuth(container);
-    });
-    document.getElementById("tab-register-btn").addEventListener("click", () => {
-      this.authTab = "register";
-      this.renderWelcomeAuth(container);
-    });
-    document.getElementById("btn-back-to-lang").addEventListener("click", () => {
-      this.welcomeStep = 1;
-      this.renderWelcomeFlow(container);
-    });
-
-    // Quick Login Demo Handlers
-    document.getElementById("btn-quick-customer").addEventListener("click", async () => {
-      try {
-        const res = await api.login({ phone: "9876543210", password: "pass123" });
-        appState.setUser(res.user);
-        window.showToast(t("success"), "Signed in as Priya Sharma (Customer)", "success");
-        this.welcomeStep = 3;
-        this.renderWelcomeFlow(container);
-      } catch (err) {
-        window.showToast(t("error"), err.message, "error");
-      }
-    });
-
-    document.getElementById("btn-quick-shopkeeper").addEventListener("click", async () => {
-      try {
-        const res = await api.login({ phone: "9876543211", password: "pass123" });
-        appState.setUser(res.user);
-        window.showToast(t("success"), "Signed in as Rajesh Gupta (Shopkeeper)", "success");
-        this.welcomeStep = 3;
-        this.renderWelcomeFlow(container);
-      } catch (err) {
-        window.showToast(t("error"), err.message, "error");
-      }
-    });
-
-    // Login submit
-    const loginForm = document.getElementById("welcome-login-form");
-    if (loginForm) {
-      loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const phone = document.getElementById("w-login-phone").value.trim();
-        const password = document.getElementById("w-login-password").value.trim();
-        try {
-          const res = await api.login({ phone, password });
-          window.showToast(t("success"), res.message, "success");
-          appState.setUser(res.user);
-          this.welcomeStep = 3;
-          this.renderWelcomeFlow(container);
-        } catch (err) {
-          window.showToast(t("error"), err.message, "error");
-        }
-      });
-    }
-
-    // Register submit
-    const regForm = document.getElementById("welcome-reg-form");
-    if (regForm) {
-      regForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const full_name = document.getElementById("w-reg-name").value.trim();
-        const phone = document.getElementById("w-reg-phone").value.trim();
-        const address = document.getElementById("w-reg-address").value.trim();
-        const city = document.getElementById("w-reg-city").value.trim();
-        const pincode = document.getElementById("w-reg-pincode").value.trim();
-        const password = document.getElementById("w-reg-password").value.trim();
-
-        try {
-          const res = await api.register({
-            full_name, phone, address, city, state: "Haryana", pincode, password, role: "customer"
-          });
-          window.showToast(t("success"), res.message, "success");
-          appState.setUser(res.user);
-          this.welcomeStep = 3;
-          this.renderWelcomeFlow(container);
-        } catch (err) {
-          window.showToast(t("error"), err.message, "error");
-        }
-      });
-    }
-  },
-
-  renderWelcomeRole(container) {
-    const user = appState.currentUser;
-    container.innerHTML = `
-      <div style="max-width: 900px; margin: 2rem auto; padding: 0 1rem;">
-        <div style="text-align: center; margin-bottom: 2rem;">
-          <span class="badge badge-info" style="margin-bottom: 0.5rem;">Step 3 of 3</span>
-          <h1 style="font-size: 2.1rem; font-weight: 800; color: var(--dark); margin-bottom: 0.5rem;" data-i18n="role_select_title">
-            ${t("role_select_title")}
-          </h1>
-          <p style="color: var(--text-muted); font-size: 1.05rem;" data-i18n="role_select_sub">
-            ${t("role_select_sub")}
-          </p>
-          ${user ? `
-            <div style="display: inline-block; background: var(--bg-subtle); padding: 0.35rem 0.9rem; border-radius: 9999px; margin-top: 0.5rem; font-size: 0.88rem;">
-              Logged in as: <strong>${user.full_name}</strong> (${user.phone})
-            </div>
-          ` : ''}
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
-          <!-- Customer Role Card -->
-          <div class="role-card-large ${appState.currentRole === 'customer' ? 'selected' : ''}" id="welcome-role-customer">
-            <img class="role-card-img" src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&auto=format&fit=crop" alt="Customer Experience" />
-            <div class="role-card-body">
-              <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem;">
-                <span style="font-size: 1.8rem;">🛍️</span>
-                <h3 style="font-size: 1.45rem; font-weight: 800; color: var(--dark);" data-i18n="role_customer_title">
-                  ${t("role_customer_title")}
-                </h3>
-              </div>
-              <p style="color: var(--text-muted); font-size: 0.92rem; line-height: 1.5; margin-bottom: 1.25rem;" data-i18n="role_customer_desc">
-                ${t("role_customer_desc")}
-              </p>
-              <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.75rem; font-size: 0.88rem; color: var(--text-main);">
-                <li style="display: flex; align-items: center; gap: 0.5rem;">
-                  <span style="color: var(--primary); font-weight: 700;">✓</span> Find item availability across Yamunanagar shops
-                </li>
-                <li style="display: flex; align-items: center; gap: 0.5rem;">
-                  <span style="color: var(--primary); font-weight: 700;">✓</span> Inquire with photos or product specifications
-                </li>
-                <li style="display: flex; align-items: center; gap: 0.5rem;">
-                  <span style="color: var(--primary); font-weight: 700;">✓</span> Select store self-pickup or doorstep home delivery
-                </li>
-              </ul>
-              <button class="btn btn-primary btn-block btn-lg" data-i18n="btn_enter_customer" style="margin-top: auto;">
-                ${t("btn_enter_customer")} →
-              </button>
-            </div>
-          </div>
-
-          <!-- Shopkeeper Role Card -->
-          <div class="role-card-large ${appState.currentRole === 'shopkeeper' ? 'selected' : ''}" id="welcome-role-shopkeeper">
-            <img class="role-card-img" src="https://images.unsplash.com/photo-1556740758-90de374c12ad?w=600&auto=format&fit=crop" alt="Shopkeeper Experience" />
-            <div class="role-card-body">
-              <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem;">
-                <span style="font-size: 1.8rem;">🏪</span>
-                <h3 style="font-size: 1.45rem; font-weight: 800; color: var(--dark);" data-i18n="role_shopkeeper_title">
-                  ${t("role_shopkeeper_title")}
-                </h3>
-              </div>
-              <p style="color: var(--text-muted); font-size: 0.92rem; line-height: 1.5; margin-bottom: 1.25rem;" data-i18n="role_shopkeeper_desc">
-                ${t("role_shopkeeper_desc")}
-              </p>
-              <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.75rem; font-size: 0.88rem; color: var(--text-main);">
-                <li style="display: flex; align-items: center; gap: 0.5rem;">
-                  <span style="color: var(--secondary); font-weight: 700;">✓</span> Receive instant customer product inquiries
-                </li>
-                <li style="display: flex; align-items: center; gap: 0.5rem;">
-                  <span style="color: var(--secondary); font-weight: 700;">✓</span> Suggest in-stock products with photos & price
-                </li>
-                <li style="display: flex; align-items: center; gap: 0.5rem;">
-                  <span style="color: var(--secondary); font-weight: 700;">✓</span> Confirmed orders dashboard & revenue tracking
-                </li>
-              </ul>
-              <button class="btn btn-secondary btn-block btn-lg" data-i18n="btn_enter_shopkeeper" style="margin-top: auto;">
-                ${t("btn_enter_shopkeeper")} →
-              </button>
-            </div>
-          </div>
-        </div>
-
-        ${user && user.role === 'admin' ? `
-          <div style="text-align: center; margin-top: 1rem;">
-            <button class="btn btn-outline" id="welcome-btn-admin">
-              🛡️ Go to Admin Control Panel
-            </button>
-          </div>
-        ` : ''}
-      </div>
-    `;
-
-    document.getElementById("welcome-role-customer").addEventListener("click", () => {
-      appState.setRole("customer");
-      appState.navigate("home");
-    });
-
-    document.getElementById("welcome-role-shopkeeper").addEventListener("click", () => {
-      appState.setRole("shopkeeper");
-      appState.navigate("shopkeeper");
-    });
-
-    const adminBtn = document.getElementById("welcome-btn-admin");
-    if (adminBtn) {
-      adminBtn.addEventListener("click", () => {
-        appState.setRole("admin");
-        appState.navigate("admin");
-      });
-    }
+  pendingAddress: {
+    state: "Haryana",
+    city: "Yamunanagar",
+    district: "Yamunanagar",
+    pincode: "135001",
+    localArea: "Civil Lines",
+    postOffice: "Yamunanagar H.O.",
+    address: "House No. 42, Civil Lines"
   },
 
   renderLogin(container) {
-    this.welcomeStep = 2;
-    this.authTab = "login";
-    this.renderWelcomeFlow(container);
+    this.renderStep1Credentials(container);
   },
 
-  renderRegister(container) {
-    this.welcomeStep = 2;
-    this.authTab = "register";
-    this.renderWelcomeFlow(container);
+  // =========================================================================
+  // STEP 1: PERSONAL CREDENTIALS SCREEN
+  // =========================================================================
+  renderStep1Credentials(container) {
+    const creds = this.pendingCredentials;
+
+    container.innerHTML = `
+      <div class="auth-page-wrapper">
+        <div class="auth-card">
+          <!-- Brand Header -->
+          <div class="auth-header">
+            <div class="brand-icon auth-brand-icon" style="background: linear-gradient(135deg, var(--pastel-sage), var(--pastel-blush));">NB</div>
+            <h1 class="auth-brand-name" style="color: var(--dark);">Nearby</h1>
+            <p class="auth-tagline">Neighborhood Product Discovery & Local Inventory</p>
+            <div class="auth-step-pill" style="background: var(--pastel-sage-light); color: var(--pastel-sage-dark);">
+              Step 1 of 3: Personal Credentials
+            </div>
+          </div>
+
+          <!-- Step 1 Form -->
+          <form id="nearby-credentials-form" class="auth-form" novalidate>
+            <div class="form-section-title">
+              <span>👤</span> Personal Identification
+            </div>
+
+            <!-- Full Name -->
+            <div class="form-group">
+              <label class="form-label" for="login-fullname">Full Name <span class="required">*</span></label>
+              <input type="text" id="login-fullname" class="form-control" placeholder="e.g. Aarav Mehra" value="${creds.fullName || ''}" required autofocus />
+              <div class="form-hint">Enter your authentic legal name for orders and pickups</div>
+            </div>
+
+            <!-- Phone Number -->
+            <div class="form-group">
+              <label class="form-label" for="login-phone">Phone Number <span class="required">*</span></label>
+              <input type="tel" id="login-phone" class="form-control" placeholder="10-digit mobile number" maxlength="10" value="${creds.phone || ''}" required />
+              <div class="form-hint">Used for shopkeeper order verification & pickup PIN</div>
+            </div>
+
+            <!-- Email Address -->
+            <div class="form-group">
+              <label class="form-label" for="login-email">Email Address <span class="required">*</span></label>
+              <input type="email" id="login-email" class="form-control" placeholder="e.g. aarav.mehra@example.com" value="${creds.email || ''}" required />
+              <div class="form-hint">Used for order confirmations and digital receipts</div>
+            </div>
+
+            <!-- Password with Masking & Eye Toggle -->
+            <div class="form-group">
+              <label class="form-label" for="login-password">Password <span class="required">*</span></label>
+              <div style="position: relative; display: flex; align-items: center;">
+                <input type="password" id="login-password" class="form-control" placeholder="••••••••" value="${creds.password || ''}" style="padding-right: 2.75rem;" required />
+                <button type="button" id="btn-toggle-password" style="position: absolute; right: 0.75rem; background: none; border: none; cursor: pointer; font-size: 1.1rem; opacity: 0.65; color: var(--text-muted);" title="Toggle password visibility">
+                  👁️
+                </button>
+              </div>
+              <div class="form-hint">Must be at least 4 characters</div>
+            </div>
+
+            <!-- Continue Button -->
+            <button type="submit" class="btn btn-primary btn-lg btn-block auth-submit-btn" id="btn-credentials-continue" style="margin-top: 1.5rem;">
+              Continue to Address Details (Step 2) →
+            </button>
+          </form>
+        </div>
+      </div>
+    `;
+
+    // Password visibility toggle
+    const pwdInput = document.getElementById("login-password");
+    const toggleBtn = document.getElementById("btn-toggle-password");
+    if (toggleBtn && pwdInput) {
+      toggleBtn.addEventListener("click", () => {
+        if (pwdInput.type === "password") {
+          pwdInput.type = "text";
+          toggleBtn.textContent = "🙈";
+        } else {
+          pwdInput.type = "password";
+          toggleBtn.textContent = "👁️";
+        }
+      });
+    }
+
+    // Credentials submission
+    const form = document.getElementById("nearby-credentials-form");
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const fullName = document.getElementById("login-fullname").value.trim();
+      const phone = document.getElementById("login-phone").value.trim();
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value.trim();
+
+      if (!fullName) {
+        window.showToast("Full Name Required", "Please enter your full name.", "warning");
+        document.getElementById("login-fullname").focus();
+        return;
+      }
+      if (!phone || phone.length < 10 || !/^\d{10}$/.test(phone)) {
+        window.showToast("Invalid Phone", "Please enter a valid 10-digit mobile number.", "warning");
+        document.getElementById("login-phone").focus();
+        return;
+      }
+      if (!email || !email.includes("@") || !email.includes(".")) {
+        window.showToast("Valid Email Required", "Please enter a valid email address.", "warning");
+        document.getElementById("login-email").focus();
+        return;
+      }
+      if (!password || password.length < 4) {
+        window.showToast("Password Required", "Please enter a secure password (at least 4 characters).", "warning");
+        document.getElementById("login-password").focus();
+        return;
+      }
+
+      // Save credentials in state
+      this.pendingCredentials = { fullName, phone, email, password };
+
+      // Transition immediately to Step 2
+      this.renderStep2Address(container);
+    });
+
+    i18n.applyTranslations(container);
   },
 
+  // =========================================================================
+  // STEP 2: DETAILED ADDRESS SCREEN
+  // =========================================================================
+  renderStep2Address(container) {
+    const addr = this.pendingAddress;
+    const creds = this.pendingCredentials;
+
+    container.innerHTML = `
+      <div class="auth-page-wrapper">
+        <div class="auth-card">
+          <!-- Brand Header -->
+          <div class="auth-header">
+            <div class="brand-icon auth-brand-icon" style="background: linear-gradient(135deg, var(--pastel-sage), var(--pastel-blush));">NB</div>
+            <h1 class="auth-brand-name" style="color: var(--dark);">Nearby</h1>
+            <p class="auth-tagline">Neighborhood Product Discovery & Local Inventory</p>
+            <div class="auth-step-pill" style="background: var(--pastel-sage-light); color: var(--pastel-sage-dark);">
+              Step 2 of 3: Detailed Address
+            </div>
+          </div>
+
+          <!-- User Chip from Step 1 -->
+          <div style="background: var(--bg-app); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.65rem 0.9rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 0.85rem; color: var(--dark);">
+              👤 <strong>${creds.fullName || 'User'}</strong> (${creds.phone || ''})
+            </div>
+            <button type="button" id="btn-back-to-step1" class="btn btn-link btn-sm" style="padding: 0; font-size: 0.8rem;">
+              Edit Credentials
+            </button>
+          </div>
+
+          <!-- Step 2 Form -->
+          <form id="nearby-address-form" class="auth-form" novalidate>
+            <div class="form-section-title">
+              <span>📍</span> Neighborhood Address Details
+            </div>
+
+            <!-- Row 1: State & City -->
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="addr-state">State Name <span class="required">*</span></label>
+                <input type="text" id="addr-state" class="form-control" placeholder="e.g. Haryana" value="${addr.state || 'Haryana'}" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="addr-city">City Name <span class="required">*</span></label>
+                <input type="text" id="addr-city" class="form-control" placeholder="e.g. Yamunanagar" value="${addr.city || 'Yamunanagar'}" required />
+              </div>
+            </div>
+
+            <!-- Row 2: District & PIN Code (Strictly Validated) -->
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="addr-district">District <span class="required">*</span></label>
+                <input type="text" id="addr-district" class="form-control" placeholder="e.g. Yamunanagar" value="${addr.district || addr.city || 'Yamunanagar'}" required />
+                <div class="form-hint">Administrative district for shop clustering</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="addr-pincode">
+                  PIN Code <span class="required">*</span>
+                  <span class="pincode-mandatory-badge">Strictly Validated</span>
+                </label>
+                <input type="text" id="addr-pincode" class="form-control" placeholder="e.g. 135001" maxlength="6" value="${addr.pincode || '135001'}" required />
+                <div class="form-hint">Strict 6-digit postal code of your area</div>
+              </div>
+            </div>
+
+            <!-- Row 3: Locality/Area & Post Office -->
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="addr-localarea">Locality / Area <span class="required">*</span></label>
+                <input type="text" id="addr-localarea" class="form-control" placeholder="e.g. Civil Lines, Model Town" value="${addr.localArea || 'Civil Lines'}" required />
+                <div class="form-hint">Sector, colony, or neighborhood name</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="addr-postoffice">Post Office <span class="required">*</span></label>
+                <input type="text" id="addr-postoffice" class="form-control" placeholder="e.g. Yamunanagar H.O." value="${addr.postOffice || 'Yamunanagar H.O.'}" required />
+                <div class="form-hint">Serving post office branch</div>
+              </div>
+            </div>
+
+            <!-- Full Street Address -->
+            <div class="form-group">
+              <label class="form-label" for="addr-fulladdress">Full Street Address <span class="required">*</span></label>
+              <input type="text" id="addr-fulladdress" class="form-control" placeholder="House/Flat/Shop no., building name, road" value="${addr.address || ''}" required />
+              <div class="form-hint">Accurate physical location for pickup directions and home delivery</div>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+              <button type="button" class="btn btn-outline" id="btn-back-step1" style="flex: 1;">
+                ← Back
+              </button>
+              <button type="submit" class="btn btn-primary btn-lg auth-submit-btn" id="btn-address-continue" style="flex: 2;">
+                Continue to Role Selection (Step 3) →
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    // Back to Step 1
+    const handleBack = () => this.renderStep1Credentials(container);
+    document.getElementById("btn-back-to-step1")?.addEventListener("click", handleBack);
+    document.getElementById("btn-back-step1")?.addEventListener("click", handleBack);
+
+    // Address submission & Persistence
+    const form = document.getElementById("nearby-address-form");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const state = document.getElementById("addr-state").value.trim();
+      const city = document.getElementById("addr-city").value.trim();
+      const district = document.getElementById("addr-district").value.trim();
+      const pincode = document.getElementById("addr-pincode").value.trim();
+      const localArea = document.getElementById("addr-localarea").value.trim();
+      const postOffice = document.getElementById("addr-postoffice").value.trim();
+      const address = document.getElementById("addr-fulladdress").value.trim();
+
+      if (!state) {
+        window.showToast("State Required", "Please enter your State name.", "warning");
+        document.getElementById("addr-state").focus();
+        return;
+      }
+      if (!city) {
+        window.showToast("City Required", "Please enter your City name.", "warning");
+        document.getElementById("addr-city").focus();
+        return;
+      }
+      if (!district) {
+        window.showToast("District Required", "Please enter your District name.", "warning");
+        document.getElementById("addr-district").focus();
+        return;
+      }
+      if (!pincode || pincode.length < 5 || !/^\d{5,6}$/.test(pincode)) {
+        window.showToast("PIN Code Strictly Validated", "Please enter a valid 5 or 6-digit postal PIN code.", "warning");
+        document.getElementById("addr-pincode").focus();
+        return;
+      }
+      if (!localArea) {
+        window.showToast("Locality Required", "Please enter your local area or sector.", "warning");
+        document.getElementById("addr-localarea").focus();
+        return;
+      }
+      if (!postOffice) {
+        window.showToast("Post Office Required", "Please enter your serving post office.", "warning");
+        document.getElementById("addr-postoffice").focus();
+        return;
+      }
+      if (!address) {
+        window.showToast("Address Required", "Please enter your full street address.", "warning");
+        document.getElementById("addr-fulladdress").focus();
+        return;
+      }
+
+      this.pendingAddress = { state, city, district, pincode, localArea, postOffice, address };
+
+      const submitBtn = document.getElementById("btn-address-continue");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Saving profile...";
+
+      try {
+        const payload = {
+          full_name: creds.fullName,
+          email: creds.email,
+          phone: creds.phone,
+          password: creds.password,
+          state: state,
+          city: city,
+          district: district,
+          pincode: pincode,
+          local_area: localArea,
+          post_office: postOffice,
+          address: address,
+          role: "customer"
+        };
+
+        const res = await api.onboard(payload);
+        if (res && res.user) {
+          appState.setUser(res.user);
+          window.showToast("Profile Saved", `Welcome, ${res.user.full_name}!`, "success");
+          this.renderRoleSelect(container);
+        } else {
+          throw new Error("Failed to save registration profile.");
+        }
+      } catch (err) {
+        window.showToast("Error", err.message || "Failed to save profile.", "error");
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Continue to Role Selection (Step 3) →";
+      }
+    });
+
+    i18n.applyTranslations(container);
+  },
+
+  // =========================================================================
+  // STEP 3: ROLE SELECTION GATEWAY
+  // =========================================================================
   renderRoleSelect(container) {
-    this.welcomeStep = 3;
-    this.renderWelcomeFlow(container);
+    const user = appState.currentUser;
+    const userName = user ? user.full_name : (this.pendingCredentials.fullName || "Valued User");
+    const userPhone = user ? user.phone : (this.pendingCredentials.phone || "");
+
+    container.innerHTML = `
+      <div class="role-selection-wrapper">
+        <div class="role-selection-card">
+          <!-- Step indicator & Header -->
+          <div class="role-header-box">
+            <span class="auth-step-pill" style="background: var(--pastel-sage-light); color: var(--pastel-sage-dark);">
+              Step 3 of 3: Role Selection Gateway
+            </span>
+            <h1 class="role-main-title">
+              How will you use Nearby?
+            </h1>
+            <p class="role-sub-title">
+              Choose your role to enter your customized interface
+            </p>
+            ${user ? `
+              <div class="user-active-badge">
+                Signed in as: <strong>${userName}</strong> ${userPhone ? `(${userPhone})` : ''} • PIN: <strong>${user.pincode || '135001'}</strong>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Two Interactive Role Cards: Customer vs. Seller / Shopkeeper -->
+          <div class="role-cards-grid">
+            <!-- 1. Customer Card -->
+            <div class="role-card ${appState.currentRole === 'customer' ? 'selected' : ''}" id="card-role-customer" tabindex="0">
+              <div class="role-card-image-wrapper">
+                <img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&auto=format&fit=crop" alt="Customer Experience" class="role-card-banner-img" />
+                <div class="role-card-icon-bubble" style="background: var(--pastel-sage-light); color: var(--pastel-sage-dark);">🛍️</div>
+              </div>
+              <div class="role-card-content">
+                <h2 class="role-card-heading">Customer</h2>
+                <p class="role-card-description">
+                  Discover product availability across local neighborhood shops before leaving your doorstep.
+                </p>
+
+                <ul class="role-card-features">
+                  <li><span class="check-icon" style="color: var(--pastel-sage);">✓</span> Visual search or category inquiry for products</li>
+                  <li><span class="check-icon" style="color: var(--pastel-sage);">✓</span> Compare real seller stock photos & instant quotes</li>
+                  <li><span class="check-icon" style="color: var(--pastel-sage);">✓</span> Interactive route navigation or doorstep delivery</li>
+                </ul>
+
+                <button type="button" class="btn btn-primary btn-lg btn-block role-action-btn" id="btn-select-customer">
+                  Enter as Customer →
+                </button>
+              </div>
+            </div>
+
+            <!-- 2. Seller / Shopkeeper Card -->
+            <div class="role-card ${appState.currentRole === 'shopkeeper' ? 'selected' : ''}" id="card-role-shopkeeper" tabindex="0">
+              <div class="role-card-image-wrapper">
+                <img src="https://images.unsplash.com/photo-1556740758-90de374c12ad?w=600&auto=format&fit=crop" alt="Shopkeeper Experience" class="role-card-banner-img" />
+                <div class="role-card-icon-bubble" style="background: var(--pastel-blush-light); color: var(--pastel-blush-dark);">🏪</div>
+              </div>
+              <div class="role-card-content">
+                <h2 class="role-card-heading">Seller / Shopkeeper</h2>
+                <p class="role-card-description">
+                  Receive live buyer inquiries from nearby residents matching your exact inventory domain.
+                </p>
+
+                <!-- Store Specialty Categorization Selector -->
+                <div style="background: var(--bg-app); border: 1.5px solid var(--border-color); border-radius: var(--radius-md); padding: 0.9rem; margin-bottom: 1rem; text-align: left;">
+                  <label class="form-label" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 0.35rem;">
+                    Store Specialty Domain <span class="required">*</span>
+                  </label>
+                  <select id="seller-specialty-select" class="form-control" style="font-weight: 600; font-size: 0.9rem;">
+                    <option value="Clothes & Apparel">Clothes & Apparel</option>
+                    <option value="Beauty & Skincare">Beauty & Skincare</option>
+                    <option value="Footwear / Shoes">Footwear / Shoes</option>
+                  </select>
+                  <div class="form-hint" style="font-size: 0.76rem; margin-top: 0.25rem;">
+                    Ensures you only receive requests matching your store's inventory domain
+                  </div>
+                </div>
+
+                <ul class="role-card-features">
+                  <li><span class="check-icon" style="color: var(--pastel-blush-dark);">✓</span> Filtered requests feed strictly for your specialty</li>
+                  <li><span class="check-icon" style="color: var(--pastel-blush-dark);">✓</span> Quick photo-upload tool to reply with stock options</li>
+                  <li><span class="check-icon" style="color: var(--pastel-blush-dark);">✓</span> Daily turnover, COD vs Digital payments & earnings</li>
+                </ul>
+
+                <button type="button" class="btn btn-secondary btn-lg btn-block role-action-btn" id="btn-select-shopkeeper">
+                  Enter as Seller / Shopkeeper →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom bar -->
+          <div class="role-bottom-bar">
+            <button type="button" class="btn btn-link btn-sm text-muted" id="btn-restart-login">
+              ← Change Account Details / Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Customer selection handler
+    const chooseCustomer = async () => {
+      appState.setRole("customer");
+      window.showToast("Customer View", "Entering Nearby as Customer", "success");
+      appState.navigate("home");
+    };
+
+    // Shopkeeper selection handler
+    const chooseShopkeeper = async () => {
+      const specialty = document.getElementById("seller-specialty-select").value;
+      if (user) {
+        user.store_specialty = specialty;
+        user.role = "shopkeeper";
+        appState.setUser(user);
+        try {
+          await api.onboard({ ...user, role: "shopkeeper", store_specialty: specialty });
+        } catch (e) {
+          console.warn("Could not sync specialty immediately:", e);
+        }
+      }
+      appState.setRole("shopkeeper");
+      window.showToast("Seller Hub", `Entered as Shopkeeper (${specialty})`, "success");
+      appState.navigate("shopkeeper");
+    };
+
+    document.getElementById("card-role-customer").addEventListener("click", chooseCustomer);
+    document.getElementById("btn-select-customer").addEventListener("click", (e) => {
+      e.stopPropagation();
+      chooseCustomer();
+    });
+
+    document.getElementById("btn-select-shopkeeper").addEventListener("click", (e) => {
+      e.stopPropagation();
+      chooseShopkeeper();
+    });
+
+    document.getElementById("btn-restart-login").addEventListener("click", () => {
+      appState.logout();
+    });
+
+    i18n.applyTranslations(container);
+  },
+
+  renderWelcomeFlow(container) {
+    this.renderStep1Credentials(container);
   }
 };
 

@@ -222,7 +222,7 @@ const ordersView = {
               <span class="demo-badge">PROTOTYPE DEMO PAYMENT</span>
               <p style="font-size: 0.85rem; color: #1e3a8a; margin-top: 0.5rem;">Scan with Google Pay / PhonePe / Paytm or pay directly:</p>
               <div class="mock-qr">📱</div>
-              <p style="font-weight: 700; color: #1e40af;">UPI ID: localfind@okaxis (Mock)</p>
+              <p style="font-weight: 700; color: #1e40af;">UPI ID: findme@okaxis (Mock)</p>
               <p style="font-size: 0.78rem; color: #64748b; margin-top: 0.4rem;">Note: No real money is deducted. Click below to simulate instant payment.</p>
             </div>
           </div>

@@ -20,6 +20,12 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
     def _set_json_headers(self, status=200):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -141,9 +147,29 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
 
             sql = "SELECT * FROM shops WHERE status = 'approved'"
             params = []
+
+            # Category filter with strict synonyms
+            CAT_SYNONYMS = {
+                "clothes": ["Clothes", "Clothing", "Fashion", "Garments", "Apparel"],
+                "skincare": ["Skincare", "Skin products", "Skin Care", "Derma"],
+                "beauty / makeup": ["Beauty / Makeup", "Beauty", "Makeup", "Cosmetics"],
+                "beauty": ["Beauty / Makeup", "Beauty", "Makeup", "Cosmetics"],
+                "skincare & beauty": ["Skincare", "Skin products", "Skin Care", "Derma", "Beauty / Makeup", "Beauty", "Makeup", "Cosmetics", "Beauty & Skincare"],
+                "beauty & skincare": ["Skincare", "Skin products", "Skin Care", "Derma", "Beauty / Makeup", "Beauty", "Makeup", "Cosmetics", "Beauty & Skincare"],
+                "shoes": ["Shoes", "Footwear"]
+            }
+
             if category and category != "All":
-                sql += " AND category LIKE ?"
-                params.append(f"%{category}%")
+                cat_key = category.lower().strip()
+                synonyms = CAT_SYNONYMS.get(cat_key, [category])
+                cat_clauses = " OR ".join(["category LIKE ?" for _ in synonyms])
+                spec_clauses = " OR ".join(["specialty LIKE ?" for _ in synonyms])
+                sql += f" AND (({cat_clauses}) OR ({spec_clauses}))"
+                for syn in synonyms:
+                    params.append(f"%{syn}%")
+                for syn in synonyms:
+                    params.append(f"%{syn}%")
+
             if area and area != "All":
                 sql += " AND area = ?"
                 params.append(area)
@@ -247,26 +273,28 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
                 """, (customer_id,))
             elif shop_id:
                 # Find requests sent specifically to this shop OR nearby requests matching shop category and area
-                cur.execute("SELECT category, area, city FROM shops WHERE id = ?", (shop_id,))
-                shop_info = cur.fetchone()
-                if shop_info:
+                cur.execute("SELECT category, area, city, specialty FROM shops WHERE id = ?", (shop_id,))
+                shop_row = cur.fetchone()
+                if shop_row:
+                    shop_info = dict(shop_row)
+                    # Match shop category or store specialty, and also include broadcasted requests
                     cur.execute("""
                         SELECT r.*, u.full_name as customer_name, u.phone as customer_phone
                         FROM product_requests r
-                        JOIN users u ON r.customer_id = u.id
+                        LEFT JOIN users u ON r.customer_id = u.id
                         WHERE r.selected_shop_id = ? 
-                           OR (r.shop_preference = 'nearby' AND r.category = ? AND r.city = ?)
+                           OR ((r.shop_preference = 'nearby' OR r.is_broadcasted = 1) AND (r.category = ? OR ? LIKE '%' || r.category || '%'))
                         ORDER BY r.id DESC
-                    """, (shop_id, shop_info["category"], shop_info["city"]))
+                    """, (shop_id, shop_info["category"], shop_info.get("specialty") or shop_info["category"]))
                 else:
-                    cur.execute("SELECT r.*, u.full_name as customer_name, u.phone as customer_phone FROM product_requests r JOIN users u ON r.customer_id = u.id WHERE r.selected_shop_id = ? ORDER BY r.id DESC", (shop_id,))
+                    cur.execute("SELECT r.*, u.full_name as customer_name, u.phone as customer_phone FROM product_requests r LEFT JOIN users u ON r.customer_id = u.id WHERE r.selected_shop_id = ? ORDER BY r.id DESC", (shop_id,))
             else:
-                cur.execute("SELECT r.*, u.full_name as customer_name FROM product_requests r JOIN users u ON r.customer_id = u.id ORDER BY r.id DESC")
+                cur.execute("SELECT r.*, u.full_name as customer_name FROM product_requests r LEFT JOIN users u ON r.customer_id = u.id ORDER BY r.id DESC")
 
             requests = [dict(row) for row in cur.fetchall()]
             # Attach responses count and responses
             for req in requests:
-                cur.execute("SELECT resp.*, s.name as shop_name FROM request_responses resp JOIN shops s ON resp.shop_id = s.id WHERE resp.request_id = ? ORDER BY resp.id DESC", (req["id"],))
+                cur.execute("SELECT resp.*, s.name as shop_name, s.address as shop_address, s.contact_number as shop_contact FROM request_responses resp JOIN shops s ON resp.shop_id = s.id WHERE resp.request_id = ? ORDER BY resp.id DESC", (req["id"],))
                 req["responses"] = [dict(r) for r in cur.fetchall()]
 
             self._send_json({"success": True, "requests": requests})
@@ -276,7 +304,7 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
         # Single request
         if path.startswith("/api/requests/"):
             req_id = path.replace("/api/requests/", "").split("/")[0].strip()
-            cur.execute("SELECT r.*, u.full_name as customer_name, u.phone as customer_phone, s.name as shop_name, s.address as shop_address FROM product_requests r JOIN users u ON r.customer_id = u.id LEFT JOIN shops s ON r.selected_shop_id = s.id WHERE r.id = ?", (req_id,))
+            cur.execute("SELECT r.*, u.full_name as customer_name, u.phone as customer_phone, s.name as shop_name, s.address as shop_address FROM product_requests r LEFT JOIN users u ON r.customer_id = u.id LEFT JOIN shops s ON r.selected_shop_id = s.id WHERE r.id = ?", (req_id,))
             req = cur.fetchone()
             if not req:
                 self._send_error("Request not found", 404)
@@ -502,6 +530,166 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
             conn.close()
             return
 
+        # Shopkeeper Stats (4-section dashboard essentials: Incoming requests, Payments COD vs Digital, Revenue, Profile)
+        if path == "/api/shopkeeper/stats":
+            shop_id = query.get("shop_id", [None])[0]
+            user_id = query.get("user_id", [None])[0]
+            if not shop_id and user_id:
+                cur.execute("SELECT id FROM shops WHERE owner_id = ?", (user_id,))
+                sh = cur.fetchone()
+                if sh:
+                    shop_id = sh["id"]
+            if not shop_id:
+                shop_id = 1 # Fallback to first shop for default view
+
+            cur.execute("SELECT * FROM shops WHERE id = ?", (shop_id,))
+            shop_row = cur.fetchone()
+            shop_info = dict(shop_row) if shop_row else {"id": shop_id, "name": "Local Store", "category": "Clothes", "specialty": "Clothes & Apparel"}
+            cat = shop_info.get("category", "Clothes")
+
+            # 1. Incoming Requests
+            cur.execute("""
+                SELECT COUNT(*) FROM product_requests r
+                WHERE r.selected_shop_id = ? 
+                   OR ((r.shop_preference = 'nearby' OR r.is_broadcasted = 1) AND (r.category = ? OR ? LIKE '%' || r.category || '%'))
+            """, (shop_id, cat, shop_info.get("specialty", cat)))
+            total_requests = cur.fetchone()[0]
+
+            cur.execute("""
+                SELECT COUNT(*) FROM product_requests r
+                WHERE (r.selected_shop_id = ? 
+                   OR ((r.shop_preference = 'nearby' OR r.is_broadcasted = 1) AND (r.category = ? OR ? LIKE '%' || r.category || '%')))
+                   AND r.status IN ('Request Submitted', 'Pending')
+            """, (shop_id, cat, shop_info.get("specialty", cat)))
+            pending_requests = cur.fetchone()[0]
+
+            # 2. Payments (Cash on Delivery vs Digital receipts)
+            cur.execute("SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM orders WHERE shop_id = ? AND payment_method = 'Cash on Delivery'", (shop_id,))
+            cod_row = cur.fetchone()
+            cod_total, cod_count = cod_row[0], cod_row[1]
+
+            cur.execute("SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM orders WHERE shop_id = ? AND payment_method != 'Cash on Delivery'", (shop_id,))
+            digital_row = cur.fetchone()
+            digital_total, digital_count = digital_row[0], digital_row[1]
+
+            # 3. Revenue / Earnings ("Make Money")
+            cur.execute("SELECT COALESCE(SUM(total_amount), 0), COUNT(*) FROM orders WHERE shop_id = ? AND status IN ('Confirmed', 'Order Confirmed', 'Delivered', 'Order Delivered', 'Collected')", (shop_id,))
+            rev_row = cur.fetchone()
+            turnover_total, completed_orders = rev_row[0], rev_row[1]
+
+            cur.execute("SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE shop_id = ? AND status IN ('Delivered', 'Order Delivered', 'Collected')", (shop_id,))
+            settled_payouts = cur.fetchone()[0]
+
+            daily_turnover = round(turnover_total * 0.4, 2) if turnover_total > 0 else 0.0
+
+            req_stats = {
+                "total": total_requests,
+                "total_requests": total_requests,
+                "total_orders": completed_orders,
+                "pending": pending_requests,
+                "responded": max(0, total_requests - pending_requests)
+            }
+            pay_stats = {
+                "cod_total": round(cod_total, 2),
+                "cod_collected": round(cod_total, 2),
+                "cod_count": cod_count,
+                "digital_total": round(digital_total, 2),
+                "digital_collected": round(digital_total, 2),
+                "digital_count": digital_count
+            }
+            rev_stats = {
+                "daily_turnover": daily_turnover,
+                "monthly_turnover": round(turnover_total, 2),
+                "total_turnover": round(turnover_total, 2),
+                "settled_payouts": round(settled_payouts, 2),
+                "completed_orders": completed_orders
+            }
+            acc_stats = {
+                "id": shop_info.get("id"),
+                "name": shop_info.get("name"),
+                "shop_name": shop_info.get("name"),
+                "category": shop_info.get("category"),
+                "specialty": shop_info.get("specialty", shop_info.get("category")),
+                "area": shop_info.get("area"),
+                "address": shop_info.get("address"),
+                "contact_number": shop_info.get("contact_number")
+            }
+
+            self._send_json({
+                "success": True,
+                "shop": acc_stats,
+                "incoming_requests": req_stats,
+                "payments": pay_stats,
+                "revenue": rev_stats,
+                "section_1_requests": req_stats,
+                "section_2_payments": pay_stats,
+                "section_3_revenue": rev_stats,
+                "section_4_account": acc_stats
+            })
+            conn.close()
+            return
+
+        # Customer Metrics (Profile Drawer: saved details, order history, and shop interaction counter)
+        if path == "/api/customer/metrics":
+            user_id = query.get("user_id", [None])[0]
+            if not user_id:
+                self._send_error("user_id is required", 400)
+                conn.close()
+                return
+
+            # Fetch user details
+            cur.execute("SELECT id, full_name, phone, email, address, post_office, local_area, district, pincode, state, city, role, created_at FROM users WHERE id = ?", (user_id,))
+            user_row = cur.fetchone()
+            if not user_row:
+                self._send_error("User not found", 404)
+                conn.close()
+                return
+            user_info = dict(user_row)
+
+            # Calculate Shop Interaction Counter:
+            # Unique shops contacted via product_requests + request_responses + orders
+            cur.execute("""
+                SELECT COUNT(DISTINCT shop_id) FROM (
+                    SELECT selected_shop_id as shop_id FROM product_requests WHERE customer_id = ? AND selected_shop_id IS NOT NULL
+                    UNION
+                    SELECT resp.shop_id FROM request_responses resp JOIN product_requests req ON resp.request_id = req.id WHERE req.customer_id = ?
+                    UNION
+                    SELECT shop_id FROM orders WHERE customer_id = ?
+                )
+            """, (user_id, user_id, user_id))
+            shops_contacted_count = cur.fetchone()[0] or 0
+
+            # Order stats & Active orders
+            cur.execute("SELECT COUNT(*) FROM orders WHERE customer_id = ?", (user_id,))
+            total_orders = cur.fetchone()[0] or 0
+
+            cur.execute("SELECT COUNT(*) FROM orders WHERE customer_id = ?", (user_id,))
+            active_orders_count = cur.fetchone()[0] or 0
+
+            # Recent Orders with Shop Name & Items
+            cur.execute("""
+                SELECT o.*, s.name as shop_name, s.area as shop_area, s.contact_number as shop_contact
+                FROM orders o
+                LEFT JOIN shops s ON o.shop_id = s.id
+                WHERE o.customer_id = ?
+                ORDER BY o.id DESC LIMIT 10
+            """, (user_id,))
+            recent_orders = [dict(row) for row in cur.fetchall()]
+            for ord_item in recent_orders:
+                cur.execute("SELECT * FROM order_items WHERE order_id = ?", (ord_item["id"],))
+                ord_item["items"] = [dict(it) for it in cur.fetchall()]
+
+            self._send_json({
+                "success": True,
+                "user": user_info,
+                "shops_contacted_count": shops_contacted_count,
+                "total_orders": total_orders,
+                "active_orders_count": active_orders_count,
+                "recent_orders": recent_orders
+            })
+            conn.close()
+            return
+
         self._send_error(f"Endpoint GET {path} not found", 404)
         conn.close()
 
@@ -509,6 +697,84 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
     def handle_api_post(self, path, data):
         conn = database.get_db_connection()
         cur = conn.cursor()
+
+        # Unified Onboarding / Login (Nearby single entry point)
+        if path == "/api/auth/onboard":
+            full_name = data.get("full_name", "").strip()
+            email = data.get("email", "").strip()
+            phone = data.get("phone", "").strip()
+            password = data.get("password", "").strip()
+            state = data.get("state", "").strip()
+            city = data.get("city", "").strip()
+            district = data.get("district", "").strip() or city
+            pincode = data.get("pincode", "").strip()
+            post_office = data.get("post_office", "").strip()
+            local_area = data.get("local_area", "").strip()
+            address = data.get("address", "").strip() or f"{local_area}, {post_office}, {city}"
+            role = data.get("role", "customer").strip()
+            store_specialty = data.get("store_specialty", "").strip()
+
+            if not full_name or not phone or not password or not address or not city or not state:
+                self._send_error("Full Name, Phone Number, Password, Address, City, and State are required.", 400)
+                conn.close()
+                return
+
+            if not pincode:
+                self._send_error("PIN code is mandatory.", 400)
+                conn.close()
+                return
+
+            if len(phone) < 10:
+                self._send_error("Please enter a valid 10-digit phone number.", 400)
+                conn.close()
+                return
+
+            # Check if user exists
+            cur.execute("SELECT id, role, store_specialty FROM users WHERE phone = ?", (phone,))
+            existing = cur.fetchone()
+            if existing:
+                user_id = existing["id"]
+                cur.execute("""
+                    UPDATE users
+                    SET full_name = ?, email = ?, address = ?, post_office = ?, local_area = ?, district = ?, pincode = ?, state = ?, city = ?, password = ?, role = COALESCE(?, role), store_specialty = COALESCE(?, store_specialty)
+                    WHERE id = ?
+                """, (full_name, email, address, post_office, local_area, district, pincode, state, city, password, role, store_specialty or None, user_id))
+            else:
+                cur.execute("""
+                    INSERT INTO users (full_name, email, phone, address, post_office, local_area, district, pincode, state, city, password, role, store_specialty)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (full_name, email, phone, address, post_office, local_area, district, pincode, state, city, password, role, store_specialty or None))
+                user_id = cur.lastrowid
+
+                # Welcome notification
+                cur.execute("""
+                    INSERT INTO notifications (user_id, title, title_hi, message, message_hi, type)
+                    VALUES (?, 'Welcome to Nearby', 'Nearby में आपका स्वागत है', 'Welcome to Nearby! Connect with your neighborhood shops easily.', 'Nearby में आपका स्वागत है! अपनी आस-पड़ोस की दुकानों से आसानी से जुड़ें।', 'system')
+                """, (user_id,))
+
+            # If shopkeeper, ensure a shop entry exists
+            if role == "shopkeeper":
+                cur.execute("SELECT id FROM shops WHERE owner_id = ?", (user_id,))
+                sh = cur.fetchone()
+                if not sh:
+                    spec = store_specialty or "Clothes & Apparel"
+                    cat_map = {"Footwear / Shoes": "Shoes", "Clothes & Apparel": "Clothes", "Beauty & Skincare": "Beauty / Makeup"}
+                    category = cat_map.get(spec, "Clothes")
+                    cur.execute("""
+                        INSERT INTO shops (owner_id, name, address, area, city, state, pincode, category, specialty, contact_number, is_open, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'approved')
+                    """, (user_id, f"{full_name}'s {spec.split('/')[0].strip()} Store", address, local_area or city, city, state, pincode, category, spec, phone))
+
+            conn.commit()
+            cur.execute("SELECT id, full_name, email, phone, address, post_office, local_area, district, pincode, state, city, role, store_specialty, preferred_lang FROM users WHERE id = ?", (user_id,))
+            user_dict = dict(cur.fetchone())
+            cur.execute("SELECT * FROM shops WHERE owner_id = ?", (user_id,))
+            shop = cur.fetchone()
+            user_dict["shop"] = dict(shop) if shop else None
+
+            self._send_json({"success": True, "message": "Authenticated successfully", "user": user_dict})
+            conn.close()
+            return
 
         # Registration
         if path == "/api/auth/register":
@@ -561,11 +827,11 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
             # Add welcome notification
             cur.execute("""
                 INSERT INTO notifications (user_id, title, title_hi, message, message_hi, type)
-                VALUES (?, 'Account Created', 'खाता बनाया गया', 'Welcome to LocalFind! Start finding or managing local products.', 'लोकलफाइंड में आपका स्वागत है! स्थानीय उत्पाद खोजना या प्रबंधित करना शुरू करें।', 'system')
+                VALUES (?, 'Welcome to Find Me', 'Find Me में आपका स्वागत है', 'Welcome to Find Me! Start finding or managing local products.', 'Find Me में आपका स्वागत है! स्थानीय उत्पाद खोजना या प्रबंधित करना शुरू करें।', 'system')
             """, (user_id,))
 
             conn.commit()
-            cur.execute("SELECT id, full_name, phone, address, pincode, state, city, role, preferred_lang FROM users WHERE id = ?", (user_id,))
+            cur.execute("SELECT id, full_name, email, phone, address, post_office, local_area, pincode, state, city, role, preferred_lang FROM users WHERE id = ?", (user_id,))
             new_user = dict(cur.fetchone())
             if shop_id:
                 cur.execute("SELECT * FROM shops WHERE id = ?", (shop_id,))
@@ -585,7 +851,7 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
                 conn.close()
                 return
 
-            cur.execute("SELECT id, full_name, phone, address, pincode, state, city, role, preferred_lang, password FROM users WHERE phone = ?", (phone,))
+            cur.execute("SELECT id, full_name, email, phone, address, post_office, local_area, pincode, state, city, role, preferred_lang, password FROM users WHERE phone = ?", (phone,))
             user = cur.fetchone()
             if not user or user["password"] != password:
                 self._send_error("Invalid phone number or password. Please try again.", 401)
@@ -605,36 +871,53 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Create Product Request (Customer)
+        # Create Product Request (Customer)
         if path == "/api/requests":
-            customer_id = data.get("customer_id")
-            shop_pref = data.get("shop_preference", "nearby")
-            selected_shop_id = data.get("selected_shop_id")
+            customer_id = data.get("customer_id") or data.get("user_id")
+            selected_shop_id = data.get("selected_shop_id") or data.get("target_shop_id") or data.get("shop_id")
+            shop_pref = data.get("shop_preference") or ("specific" if (data.get("search_mode") == "specific_shop" or selected_shop_id) else "nearby")
             state = data.get("state", "Haryana")
             city = data.get("city", "Yamunanagar")
-            area = data.get("area", "Jagadhri")
-            pincode = data.get("pincode", "135003")
+            area = data.get("area", "Civil Lines")
+            pincode = data.get("pincode", "135001")
             category = data.get("category", "Clothes")
-            request_mode = data.get("request_mode", "manual")
-            image_data = data.get("image_data")
-            color_pref = data.get("color_pref")
-            brand_pref = data.get("brand_pref")
-            size_pref = data.get("size_pref")
+            request_mode = data.get("request_mode", "manual") # 'image' or 'manual'
+
+            # Option A fields
+            ref_image_url = data.get("ref_image_url")
+            image_data = data.get("image_data") or ref_image_url
+            color_mode = data.get("color_mode")
+            color_custom = data.get("color_custom")
+            brand_mode = data.get("brand_mode")
+            brand_custom = data.get("brand_custom")
+            size_chip = data.get("size_chip")
+            alteration_notes = data.get("alteration_notes")
+
+            # Option B fields
             clothing_type = data.get("clothing_type")
             sleeves = data.get("sleeves")
-            skincare_concern = data.get("skincare_concern")
-            budget = data.get("budget")
+            skincare_volume = data.get("skincare_volume")
+            skin_type = data.get("skin_type")
+            items_count = int(data.get("items_count", 1))
+            makeup_type = data.get("makeup_type")
+            makeup_shade = data.get("makeup_shade")
             shoe_type = data.get("shoe_type")
+            shoe_size = data.get("shoe_size")
             description = data.get("description", "")
 
             cur.execute("""
                 INSERT INTO product_requests (
                     customer_id, shop_preference, selected_shop_id, state, city, area, pincode,
-                    category, request_mode, image_data, color_pref, brand_pref, size_pref,
-                    clothing_type, sleeves, skincare_concern, budget, shoe_type, description, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Request Submitted')
+                    category, request_mode, ref_image_url, image_data, color_mode, color_custom,
+                    brand_mode, brand_custom, size_chip, alteration_notes,
+                    clothing_type, sleeves, skincare_volume, skin_type, items_count,
+                    makeup_type, makeup_shade, shoe_type, shoe_size, description, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Request Submitted')
             """, (customer_id, shop_pref, selected_shop_id, state, city, area, pincode,
-                  category, request_mode, image_data, color_pref, brand_pref, size_pref,
-                  clothing_type, sleeves, skincare_concern, budget, shoe_type, description))
+                  category, request_mode, ref_image_url, image_data, color_mode, color_custom,
+                  brand_mode, brand_custom, size_chip, alteration_notes,
+                  clothing_type, sleeves, skincare_volume, skin_type, items_count,
+                  makeup_type, makeup_shade, shoe_type, shoe_size, description))
             req_id = cur.lastrowid
 
             # Create notification for target shopkeeper(s)
@@ -648,16 +931,78 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
                                 'A customer has submitted an item request to your shop.',
                                 'एक ग्राहक ने आपकी दुकान के लिए सामान की मांग भेजी है।', 'request')
                     """, (owner["owner_id"],))
+            else:
+                cur.execute("SELECT owner_id FROM shops WHERE category = ? OR specialty LIKE ?", (category, f"%{category}%"))
+                for row in cur.fetchall():
+                    if row["owner_id"]:
+                        cur.execute("""
+                            INSERT INTO notifications (user_id, title, title_hi, message, message_hi, type)
+                            VALUES (?, 'New Nearby Inquiry', 'आस-पास नई मांग',
+                                    'A customer in your area submitted an inquiry in your category.',
+                                    'आपके क्षेत्र के एक ग्राहक ने आपकी श्रेणी में सामान मांगा है।', 'request')
+                        """, (row["owner_id"],))
 
             # Customer confirmation notification
             cur.execute("""
                 INSERT INTO notifications (user_id, title, title_hi, message, message_hi, type)
-                VALUES (?, 'Request Submitted', 'मांग दर्ज की गई', ?, ?, 'request')
+                VALUES (?, 'Inquiry Submitted', 'मांग दर्ज की गई', ?, ?, 'request')
             """, (customer_id, f"Your product request #{req_id} has been submitted to local shops.", f"आपकी उत्पाद मांग #{req_id} स्थानीय दुकानों को भेज दी गई है।"))
 
             conn.commit()
             conn.close()
             self._send_json({"success": True, "request_id": req_id, "message": "Request submitted successfully"})
+            return
+
+        # Broadcast Inquiry to other relevant shops nearby
+        if "/broadcast" in path and "/api/requests/" in path:
+            req_id = path.replace("/api/requests/", "").replace("/broadcast", "").strip()
+            cur.execute("SELECT * FROM product_requests WHERE id = ?", (req_id,))
+            req = cur.fetchone()
+            if not req:
+                self._send_error("Request not found", 404)
+                conn.close()
+                return
+            cur.execute("UPDATE product_requests SET is_broadcasted = 1, shop_preference = 'nearby', status = 'Broadcasted to Nearby Shops' WHERE id = ?", (req_id,))
+            # Notify other shops matching category
+            cur.execute("SELECT s.owner_id, s.name FROM shops s WHERE (s.category = ? OR s.specialty LIKE ?) AND s.id != COALESCE(?, 0)", (req["category"], f"%{req['category']}%", req["selected_shop_id"]))
+            shops = cur.fetchall()
+            for s in shops:
+                if s["owner_id"]:
+                    cur.execute("""
+                        INSERT INTO notifications (user_id, title, title_hi, message, message_hi, type)
+                        VALUES (?, 'Broadcast Inquiry Nearby', 'आस-पास से नई मांग', ?, ?, 'request')
+                    """, (s["owner_id"], f"Customer broadcasted a {req['category']} inquiry to local shops.", f"एक ग्राहक ने आपके क्षेत्र में {req['category']} की मांग प्रसारित की है।"))
+            conn.commit()
+            conn.close()
+            self._send_json({"success": True, "message": f"Inquiry #{req_id} successfully broadcasted to other nearby shops."})
+            return
+
+        # Customer Selects or Rejects Product Suggestion (POST alias)
+        if "/select" in path and "/api/requests/" in path:
+            req_id = path.replace("/api/requests/", "").replace("/select", "").strip()
+            response_id = data.get("response_id")
+            action = data.get("action", "select")
+
+            if action == "select":
+                cur.execute("UPDATE request_responses SET status = 'selected' WHERE id = ?", (response_id,))
+                cur.execute("UPDATE product_requests SET status = 'Product Selected' WHERE id = ?", (req_id,))
+
+                cur.execute("SELECT shop_id, product_name, price FROM request_responses WHERE id = ?", (response_id,))
+                resp = cur.fetchone()
+                if resp:
+                    cur.execute("SELECT owner_id FROM shops WHERE id = ?", (resp["shop_id"],))
+                    owner = cur.fetchone()
+                    if owner and owner["owner_id"]:
+                        cur.execute("""
+                            INSERT INTO notifications (user_id, title, title_hi, message, message_hi, type)
+                            VALUES (?, 'Customer Selected Your Product!', 'ग्राहक ने आपका उत्पाद चुना!', ?, ?, 'order')
+                        """, (owner["owner_id"], f"Customer accepted your stock option: {resp['product_name']} (Rs. {resp['price']}). Proceed to prepare order.", f"ग्राहक ने आपका सुझाया गया उत्पाद स्वीकार कर लिया है: {resp['product_name']}।"))
+            else:
+                cur.execute("UPDATE request_responses SET status = 'rejected' WHERE id = ?", (response_id,))
+
+            conn.commit()
+            conn.close()
+            self._send_json({"success": True, "message": f"Response {action}ed successfully."})
             return
 
         # Shopkeeper responds to customer request with product suggestion
@@ -749,6 +1094,10 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
             customer_id = data.get("customer_id")
             shop_id = data.get("shop_id")
             delivery_method = data.get("delivery_method", "Home Delivery")
+            fulfillment_mode = data.get("fulfillment_mode", "delivery") # 'pickup' or 'delivery'
+            route_requested = int(data.get("route_requested", 0))
+            delivery_lat = data.get("delivery_lat")
+            delivery_lng = data.get("delivery_lng")
             delivery_address = data.get("delivery_address", "")
             customer_name = data.get("customer_name", "")
             customer_phone = data.get("customer_phone", "")
@@ -757,7 +1106,7 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
             customer_state = data.get("customer_state", "")
             payment_method = data.get("payment_method", "Cash on Delivery")
             subtotal = float(data.get("subtotal", 0))
-            delivery_fee = float(data.get("delivery_fee", 0))
+            delivery_fee = float(data.get("delivery_fee", 0)) if fulfillment_mode == "delivery" else 0.0
             total_amount = float(data.get("total_amount", subtotal + delivery_fee))
             items = data.get("items", [])
 
@@ -768,11 +1117,13 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
 
             cur.execute("""
                 INSERT INTO orders (
-                    customer_id, shop_id, delivery_method, delivery_address,
+                    customer_id, shop_id, delivery_method, fulfillment_mode, route_requested,
+                    delivery_lat, delivery_lng, delivery_address,
                     customer_name, customer_phone, customer_pincode, customer_city, customer_state,
-                    safety_acknowledged, payment_method, subtotal, delivery_fee, total_amount, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'Order Confirmed')
-            """, (customer_id, shop_id, delivery_method, delivery_address,
+                    safety_acknowledged, payment_method, subtotal, delivery_fee, total_amount, delivery_status, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'Confirmed', 'Order Confirmed')
+            """, (customer_id, shop_id, delivery_method, fulfillment_mode, route_requested,
+                  delivery_lat, delivery_lng, delivery_address,
                   customer_name, customer_phone, customer_pincode, customer_city, customer_state,
                   payment_method, subtotal, delivery_fee, total_amount))
             order_id = cur.lastrowid
@@ -855,6 +1206,47 @@ class LocalFindHandler(http.server.SimpleHTTPRequestHandler):
             conn.commit()
             conn.close()
             self._send_json({"success": True, "message": "Feedback submitted successfully. Thank you!"})
+            return
+
+        # Post-Delivery Review Submission
+        if path == "/api/reviews":
+            order_id = data.get("order_id")
+            shop_id = data.get("shop_id")
+            customer_id = data.get("customer_id")
+            customer_name = data.get("customer_name", "Customer")
+            shop_rating = int(data.get("shop_rating", 5))
+            shop_review = data.get("shop_review", "").strip()
+            delivery_rating = int(data.get("delivery_rating", 5)) if data.get("delivery_rating") is not None else None
+            delivery_review = data.get("delivery_review", "").strip()
+            product_satisfied = data.get("product_satisfied", "Yes")
+            product_feedback = data.get("product_feedback", "").strip()
+
+            if not order_id or not shop_id:
+                self._send_error("Order ID and Shop ID are required.", 400)
+                conn.close()
+                return
+
+            cur.execute("""
+                INSERT INTO reviews (
+                    order_id, shop_id, customer_id, customer_name,
+                    shop_rating, shop_review, delivery_rating, delivery_review,
+                    product_satisfied, product_feedback
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (order_id, shop_id, customer_id, customer_name, shop_rating, shop_review, delivery_rating, delivery_review, product_satisfied, product_feedback))
+            review_id = cur.lastrowid
+
+            # Notify shopkeeper
+            cur.execute("SELECT owner_id, name FROM shops WHERE id = ?", (shop_id,))
+            sh = cur.fetchone()
+            if sh and sh["owner_id"]:
+                cur.execute("""
+                    INSERT INTO notifications (user_id, title, title_hi, message, message_hi, type)
+                    VALUES (?, 'New Review Received', 'नई समीक्षा प्राप्त हुई', ?, ?, 'info')
+                """, (sh["owner_id"], f"Customer {customer_name} rated your shop {shop_rating}/5 stars.", f"ग्राहक {customer_name} ने आपकी दुकान को {shop_rating}/5 स्टार रेटिंग दी है।"))
+
+            conn.commit()
+            conn.close()
+            self._send_json({"success": True, "message": "Review submitted successfully.", "review_id": review_id})
             return
 
         self._send_error(f"Endpoint POST {path} not found", 404)
@@ -1077,7 +1469,7 @@ def run_server(port=PORT):
     database.init_db()
     with socketserver.TCPServer(("", port), LocalFindHandler) as httpd:
         print(f"==================================================")
-        print(f" LocalFind Server running at: http://localhost:{port}")
+        print(f" Nearby Server running at: http://localhost:{port}")
         print(f" Serving frontend from: {STATIC_DIR}")
         print(f" SQLite Database: {database.DB_PATH}")
         print(f" Press Ctrl+C to stop.")
